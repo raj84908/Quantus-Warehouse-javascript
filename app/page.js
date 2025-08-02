@@ -3,6 +3,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Package, ShoppingCart, DollarSign, AlertTriangle } from "lucide-react"
 
+async function getProducts() {
+  const res = await fetch('http://localhost:4000/api/products', { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch products');
+  return res.json();
+}
+
 export default function Dashboard() {
   const stats = [
     {
