@@ -157,140 +157,146 @@ export default function InventoryPage() {
             })}
           </div>
 
-            {/* Add Item Form */}
-            {showAddForm && (
-                <div className="mb-6 p-6 border rounded-lg bg-white shadow-sm">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Add New Inventory Item</h2>
-                    <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* SKU */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
-                            <Input
-                                type="text"
-                                name="sku"
-                                value={newItem.sku || ''}
-                                onChange={handleInputChange}
-                                required
-                            />
-                        </div>
+{/* Add Item Form */}
+{showAddForm && (
+  <div className="mb-6 p-6 border rounded-lg bg-card shadow-sm text-card-foreground">
+    <h2 className="text-xl font-semibold mb-4">Add New Inventory Item</h2>
+    <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* SKU */}
+      <div>
+        <label className="block text-sm font-medium mb-1 text-muted-foreground">SKU</label>
+        <Input
+          type="text"
+          name="sku"
+          value={newItem.sku || ''}
+          onChange={handleInputChange}
+          required
+        />
+      </div>
 
-                        {/* Product Name */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
-                            <Input
-                                type="text"
-                                name="name"
-                                value={newItem.name}
-                                onChange={handleInputChange}
-                                required
-                            />
-                        </div>
+      {/* Product Name */}
+      <div>
+        <label className="block text-sm font-medium mb-1 text-muted-foreground">Product Name</label>
+        <Input
+          type="text"
+          name="name"
+          value={newItem.name}
+          onChange={handleInputChange}
+          required
+        />
+      </div>
 
-                        {/* Category */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                            <Select
-                                value={newItem.category || ''}
-                                onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select category" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Electronics">Electronics</SelectItem>
-                                    <SelectItem value="Kits">Kits</SelectItem>
-                                    <SelectItem value="Components">Components</SelectItem>
-                                    <SelectItem value="Accessories">Accessories</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+      {/* Category */}
+      <div>
+        <label className="block text-sm font-medium mb-1 text-muted-foreground">Category</label>
+        <Select
+          value={newItem.category || ''}
+          onValueChange={(value) =>
+            setNewItem((prev) => ({ ...prev, category: value }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Electronics">Electronics</SelectItem>
+            <SelectItem value="Kits">Kits</SelectItem>
+            <SelectItem value="Components">Components</SelectItem>
+            <SelectItem value="Accessories">Accessories</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-                        {/* Location */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                            <Input
-                                type="text"
-                                name="location"
-                                value={newItem.location || ''}
-                                onChange={handleInputChange}
-                                required
-                            />
-                        </div>
+      {/* Location */}
+      <div>
+        <label className="block text-sm font-medium mb-1 text-muted-foreground">Location</label>
+        <Input
+          type="text"
+          name="location"
+          value={newItem.location || ''}
+          onChange={handleInputChange}
+          required
+        />
+      </div>
 
-                        {/* Stock */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
-                            <Input
-                                type="number"
-                                name="stock"
-                                value={newItem.stock || 0}
-                                onChange={handleInputChange}
-                                required
-                                min="0"
-                            />
-                        </div>
+      {/* Stock */}
+      <div>
+        <label className="block text-sm font-medium mb-1 text-muted-foreground">Stock</label>
+        <Input
+          type="number"
+          name="stock"
+          value={newItem.stock || 0}
+          onChange={handleInputChange}
+          required
+          min="0"
+        />
+      </div>
 
-                        {/* Min Stock */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
-                            <Input
-                                type="number"
-                                name="minStock"
-                                value={newItem.minStock || 0}
-                                onChange={handleInputChange}
-                                required
-                                min="0"
-                            />
-                        </div>
+      {/* Min Stock */}
+      <div>
+        <label className="block text-sm font-medium mb-1 text-muted-foreground">Min Stock</label>
+        <Input
+          type="number"
+          name="minStock"
+          value={newItem.minStock || 0}
+          onChange={handleInputChange}
+          required
+          min="0"
+        />
+      </div>
 
-                        {/* Value */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Value ($)</label>
-                            <Input
-                                type="number"
-                                name="value"
-                                value={newItem.value || 0}
-                                onChange={handleInputChange}
-                                required
-                                min="0"
-                                step="0.01"
-                            />
-                        </div>
+      {/* Value */}
+      <div>
+        <label className="block text-sm font-medium mb-1 text-muted-foreground">Value ($)</label>
+        <Input
+          type="number"
+          name="value"
+          value={newItem.value || 0}
+          onChange={handleInputChange}
+          required
+          min="0"
+          step="0.01"
+        />
+      </div>
 
-                        {/* Status */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                            <Select
-                                value={newItem.status || ''}
-                                onValueChange={(value) => setNewItem(prev => ({ ...prev, status: value }))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="IN_STOCK">IN_STOCK</SelectItem>
-                                    <SelectItem value="LOW_STOCK">LOW_STOCK</SelectItem>
-                                    <SelectItem value="OUT_OF_STOCK">OUT_OF_STOCK</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+      {/* Status */}
+      <div>
+        <label className="block text-sm font-medium mb-1 text-muted-foreground">Status</label>
+        <Select
+          value={newItem.status || ''}
+          onValueChange={(value) => setNewItem((prev) => ({ ...prev, status: value }))}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="IN_STOCK">IN_STOCK</SelectItem>
+            <SelectItem value="LOW_STOCK">LOW_STOCK</SelectItem>
+            <SelectItem value="OUT_OF_STOCK">OUT_OF_STOCK</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-                        {/* Buttons */}
-                        <div className="col-span-1 md:col-span-2 flex justify-end gap-2 pt-2">
-                            <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700">
-                                Save Item
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setShowAddForm(false)}
-                            >
-                                Cancel
-                            </Button>
-                        </div>
-                    </form>
-                </div>
-            )}
+      {/* Buttons */}
+      <div className="col-span-1 md:col-span-2 flex justify-end gap-2 pt-2">
+        <Button 
+          type="submit" 
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          Save Item
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setShowAddForm(false)}
+          className="border-border"
+        >
+          Cancel
+        </Button>
+      </div>
+    </form>
+  </div>
+)}
 
 
             <Card className="mb-6">
