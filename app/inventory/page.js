@@ -1,16 +1,80 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { getProducts, addProduct } from '../../lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Filter, Download, Upload, Plus, AlertTriangle, Package, DollarSign } from "lucide-react"
-import {getProducts} from "/lib/api";
 
-export default async function InventoryPage() {
 
-  const inventoryItems = await getProducts();
-  console.log("Count" + inventoryItems.length);
-  const stats = [
+export default function InventoryPage() {
+    const [inventoryItems, setInventoryItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showAddForm, setShowAddForm] = useState(true);
+    const [newItem, setNewItem] = useState({
+        sku: '',
+        name: '',
+        category: '',
+        location: '',
+        stock: 0,
+        minStock: 0,
+        value: 0,
+        status: 'IN_STOCK',
+    });
+
+    // Fetch inventory data
+    const fetchInventory = async () => {
+        try {
+            setLoading(true);
+            const items = await getProducts();
+            setInventoryItems(items);
+        } catch (error) {
+            console.error('Failed to fetch inventory:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Load initial data
+    useEffect(() => {
+        fetchInventory();
+    }, []);
+
+    // Handle adding new item
+    const handleAddItem = async (e) => {
+        e.preventDefault();
+        try {
+            await addProduct({
+                ...newItem,
+                stock: Number(newItem.stock),
+                minStock: Number(newItem.minStock),
+                value: Number(newItem.value),
+                lastUpdated: new Date().toISOString(), // if not set automatically by database
+            });
+
+            setShowAddForm(false);
+            // Refresh inventory
+            await fetchInventory();
+        } catch (error) {
+            console.error('Failed to add item:', error);
+            alert('Failed to add item. Please try again.');
+        }
+    };
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setNewItem(prev => ({
+            ...prev,
+            [name]: name === 'quantity' || name === 'price' ? Number(value) : value
+        }));
+    };
+
+    if (loading) return <div>Loading...</div>;
+
+    const stats = [
         {
           title: "Total Items",
           value: "1,716",
@@ -36,70 +100,8 @@ export default async function InventoryPage() {
           value: "$2.4M",
           description: "Current inventory value",
           icon: DollarSign,
-        },
+        }
       ]
-
-      /*
-      const inventoryItems = [
-        {
-          sku: "WPA-001",
-          name: "Widget Pro A",
-          category: "Electronics",
-          stock: 847,
-          minStock: 100,
-          location: "A1-B2",
-          value: "$25.99",
-          status: "In Stock",
-          lastUpdated: "2 hours ago",
-        },
-        {
-          sku: "CX-205",
-          name: "Component X",
-          category: "Components",
-          stock: 623,
-          minStock: 50,
-          location: "B3-C1",
-          value: "$12.50",
-          status: "In Stock",
-          lastUpdated: "4 hours ago",
-        },
-        {
-          sku: "PK-150",
-          name: "Premium Kit",
-          category: "Kits",
-          stock: 12,
-          minStock: 25,
-          location: "C2-D4",
-          value: "$89.99",
-          status: "Low Stock",
-          lastUpdated: "1 hour ago",
-        },
-        {
-          sku: "WB-300",
-          name: "Widget Basic",
-          category: "Electronics",
-          stock: 0,
-          minStock: 75,
-          location: "A2-B1",
-          value: "$15.99",
-          status: "Out of Stock",
-          lastUpdated: "6 hours ago",
-        },
-        {
-          sku: "AC-450",
-          name: "Accessory Pack",
-          category: "Accessories",
-          stock: 234,
-          minStock: 30,
-          location: "D1-E2",
-          value: "$8.75",
-          status: "In Stock",
-          lastUpdated: "3 hours ago",
-        },
-        
-       
-      ]
-      */
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -114,8 +116,8 @@ export default async function InventoryPage() {
     }
   }
 
-  return (
-      <div className="min-h-screen bg-background">
+    return (
+        <div className="min-h-screen bg-background">
         <div className="container mx-auto px-6 py-8">
           <div className="flex justify-between items-center mb-8">
             <div>
@@ -130,7 +132,7 @@ export default async function InventoryPage() {
                 <Upload className="mr-2 h-4 w-4"/>
                 Import
               </Button>
-              <Button>
+              <Button onClick={() => setShowAddForm(true)}>
                 <Plus className="mr-2 h-4 w-4"/>
                 Add Item
               </Button>
@@ -155,7 +157,143 @@ export default async function InventoryPage() {
             })}
           </div>
 
-          <Card className="mb-6">
+            {/* Add Item Form */}
+            {showAddForm && (
+                <div className="mb-6 p-6 border rounded-lg bg-white shadow-sm">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Add New Inventory Item</h2>
+                    <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* SKU */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                            <Input
+                                type="text"
+                                name="sku"
+                                value={newItem.sku || ''}
+                                onChange={handleInputChange}
+                                required
+                            />
+                        </div>
+
+                        {/* Product Name */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                            <Input
+                                type="text"
+                                name="name"
+                                value={newItem.name}
+                                onChange={handleInputChange}
+                                required
+                            />
+                        </div>
+
+                        {/* Category */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                            <Select
+                                value={newItem.category || ''}
+                                onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Electronics">Electronics</SelectItem>
+                                    <SelectItem value="Kits">Kits</SelectItem>
+                                    <SelectItem value="Components">Components</SelectItem>
+                                    <SelectItem value="Accessories">Accessories</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Location */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                            <Input
+                                type="text"
+                                name="location"
+                                value={newItem.location || ''}
+                                onChange={handleInputChange}
+                                required
+                            />
+                        </div>
+
+                        {/* Stock */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+                            <Input
+                                type="number"
+                                name="stock"
+                                value={newItem.stock || 0}
+                                onChange={handleInputChange}
+                                required
+                                min="0"
+                            />
+                        </div>
+
+                        {/* Min Stock */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
+                            <Input
+                                type="number"
+                                name="minStock"
+                                value={newItem.minStock || 0}
+                                onChange={handleInputChange}
+                                required
+                                min="0"
+                            />
+                        </div>
+
+                        {/* Value */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Value ($)</label>
+                            <Input
+                                type="number"
+                                name="value"
+                                value={newItem.value || 0}
+                                onChange={handleInputChange}
+                                required
+                                min="0"
+                                step="0.01"
+                            />
+                        </div>
+
+                        {/* Status */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <Select
+                                value={newItem.status || ''}
+                                onValueChange={(value) => setNewItem(prev => ({ ...prev, status: value }))}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="IN_STOCK">IN_STOCK</SelectItem>
+                                    <SelectItem value="LOW_STOCK">LOW_STOCK</SelectItem>
+                                    <SelectItem value="OUT_OF_STOCK">OUT_OF_STOCK</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Buttons */}
+                        <div className="col-span-1 md:col-span-2 flex justify-end gap-2 pt-2">
+                            <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700">
+                                Save Item
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowAddForm(false)}
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+
+            <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -243,5 +381,5 @@ export default async function InventoryPage() {
           </Card>
         </div>
       </div>
-  )
+    );
 }
