@@ -35,6 +35,10 @@ export default function InventoryPage() {
 
         return () => clearTimeout(timer);
     }, [searchTerm]);
+    
+    
+    
+    
 
     // Fetch inventory data
     const fetchInventory = useCallback(async (search = "", category = "all") => {
