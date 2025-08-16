@@ -8,13 +8,15 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Filter, Download, Upload, Plus, AlertTriangle, Package, DollarSign } from "lucide-react"
+import {useInventoryStats} from "../../hooks/InventoryStats";
 
 export default function InventoryPage() {
-    const [inventoryItems, setInventoryItems] = useState([]);
+    //const [inventoryItems, setInventoryItems] = useState([]);
+    const {inventoryItems, stats, loading, refresh } = useInventoryStats();
     const [searchTerm, setSearchTerm] = useState("");
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("all");
-    const [loading, setLoading] = useState(true);
+    //const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(true);
     const [newItem, setNewItem] = useState({
         sku: '',
@@ -37,26 +39,6 @@ export default function InventoryPage() {
     }, [searchTerm]);
     
     
-    
-    
-
-    // Fetch inventory data
-    const fetchInventory = useCallback(async (search = "", category = "all") => {
-        try {
-            setLoading(true);
-            const items = await getProducts(search, category);
-            setInventoryItems(items);
-        } catch (error) {
-            console.error('Failed to fetch inventory:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    // Load initial data and search when debouncedSearchTerm or selectedCategory changes
-    useEffect(() => {
-        fetchInventory(debouncedSearchTerm, selectedCategory);
-    }, [debouncedSearchTerm, selectedCategory, fetchInventory]);
 
     // Handle adding new item
     const handleAddItem = async (e) => {
@@ -70,9 +52,18 @@ export default function InventoryPage() {
                 lastUpdated: new Date().toISOString(),
             });
 
+            await refresh();  // Call refresh from your useInventoryStats hook
             setShowAddForm(false);
-            // Refresh inventory
-            await fetchInventory(debouncedSearchTerm, selectedCategory);
+            setNewItem({
+                sku: '',
+                name: '',
+                category: '',
+                location: '',
+                stock: 0,
+                minStock: 0,
+                value: 0,
+                status: 'IN_STOCK',
+            });
         } catch (error) {
             console.error('Failed to add item:', error);
             alert('Failed to add item. Please try again.');
@@ -87,30 +78,30 @@ export default function InventoryPage() {
         }));
     };
 
-    const stats = [
+    const statistics = [
         {
             title: "Total Items",
-            value: inventoryItems.length.toString(),
+            value: stats.totalItems,
             description: "Across all categories",
             icon: Package,
         },
         {
             title: "Low Stock",
-            value: inventoryItems.filter(item => item.stock <= item.minStock && item.stock > 0).length.toString(),
+            value: stats.lowStock.toString(),
             description: "Items need restocking",
             icon: AlertTriangle,
             color: "text-orange-600",
         },
         {
             title: "Out of Stock",
-            value: inventoryItems.filter(item => item.stock === 0).length.toString(),
+            value: stats.outOfStock.toString(),
             description: "Items unavailable",
             icon: AlertTriangle,
             color: "text-red-600",
         },
         {
             title: "Total Value",
-            value: `$${inventoryItems.reduce((sum, item) => sum + (item.value * item.stock), 0).toLocaleString()}`,
+            value: `$${stats.totalValue.toLocaleString()}`,
             description: "Current inventory value",
             icon: DollarSign,
         }
@@ -153,7 +144,7 @@ export default function InventoryPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    {stats.map((stat, index) => {
+                    {statistics.map((stat, index) => {
                         const Icon = stat.icon
                         return (
                             <Card key={index}>
