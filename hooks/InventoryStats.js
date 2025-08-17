@@ -1,5 +1,5 @@
 //This file is used to get the Inventory Statistics For the Dashboard and Inventory pages.
-
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { getProducts } from "../lib/api";

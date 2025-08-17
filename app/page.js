@@ -1,7 +1,10 @@
+
+"use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Package, ShoppingCart, DollarSign, AlertTriangle } from "lucide-react"
+import {useInventoryStats} from "../hooks/InventoryStats";
 
 async function getProducts() {
   const res = await fetch('http://localhost:4000/api/products', { cache: 'no-store' });
@@ -10,10 +13,11 @@ async function getProducts() {
 }
 
 export default function Dashboard() {
-  const stats = [
+  const {inventoryItems, stats, loading, refresh } = useInventoryStats();
+  const statistics = [
     {
       title: "Total Items",
-      value: "12,847",
+      value: stats.totalItems,
       change: "+2.5%",
       changeText: "from last month",
       icon: Package,
@@ -21,7 +25,7 @@ export default function Dashboard() {
     },
     {
       title: "Low Stock Items",
-      value: "23",
+      value: stats.lowStock,
       change: "+3 items",
       changeText: "need restocking",
       icon: AlertTriangle,
@@ -37,7 +41,7 @@ export default function Dashboard() {
     },
     {
       title: "Warehouse Value",
-      value: "$2.4M",
+      value: `$${stats.totalValue.toLocaleString()}`,
       change: "-1.2%",
       changeText: "from last month",
       icon: DollarSign,
@@ -131,7 +135,7 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => {
+          {statistics.map((stat, index) => {
             const Icon = stat.icon
             return (
               <Card key={index}>
