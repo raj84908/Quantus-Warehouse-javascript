@@ -17,16 +17,30 @@ import {
   MoreHorizontal,
   X,
   Minus,
+  Package,
 } from "lucide-react"
-import {useInventoryStats} from "../../hooks/InventoryStats";
 
 export default function OrdersPage() {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false)
-  const [invoiceItems, setInvoiceItems] = useState([
-    { id: 1, product: "", quantity: 1, price: 0 }
-  ])
+  const [invoiceItems, setInvoiceItems] = useState([])
+  const [productSearch, setProductSearch] = useState("")
+  const [customerInfo, setCustomerInfo] = useState({
+    companyName: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    billingAddress: ""
+  })
 
-  const {inventoryItems, stats1, loading, refresh } = useInventoryStats();
+  // Mock inventory data
+  const inventoryItems = [
+    { sku: "SKU001", name: "Wireless Headphones", value: "99.99", stock: 50, category: "Electronics", description: "High-quality wireless headphones with noise cancellation" },
+    { sku: "SKU002", name: "Bluetooth Speaker", value: "79.99", stock: 30, category: "Electronics", description: "Portable Bluetooth speaker with excellent sound" },
+    { sku: "SKU003", name: "USB Cable", value: "19.99", stock: 100, category: "Accessories", description: "Premium USB-C to USB-A cable, 6ft length" },
+    { sku: "SKU004", name: "Phone Case", value: "24.99", stock: 75, category: "Accessories", description: "Protective phone case with drop protection" },
+    { sku: "SKU005", name: "Laptop Stand", value: "49.99", stock: 25, category: "Office", description: "Adjustable laptop stand for better ergonomics" },
+    { sku: "SKU006", name: "Wireless Mouse", value: "34.99", stock: 40, category: "Office", description: "Ergonomic wireless mouse with long battery life" },
+  ]
 
   const stats = [
     {
@@ -115,15 +129,12 @@ export default function OrdersPage() {
     },
   ]
 
-  const availableProducts = inventoryItems.map(item => ({
-    id: item.sku, // Use SKU as ID since it's unique
-    name: item.name,
-    price: Number(item.value),
-    stock: item.stock,
-    category: item.category,
-    isOutOfStock: item.stock <= 0
-  }))
-
+  // Filter products based on search
+  const filteredProducts = inventoryItems.filter(item =>
+      item.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+      item.category.toLowerCase().includes(productSearch.toLowerCase()) ||
+      item.sku.toLowerCase().includes(productSearch.toLowerCase())
+  )
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -155,17 +166,33 @@ export default function OrdersPage() {
     }
   }
 
-  const addInvoiceItem = () => {
-    setInvoiceItems([
-      ...invoiceItems,
-      { id: Date.now(), product: "", quantity: 1, price: 0 }
-    ])
+  const addItemToInvoice = (product) => {
+    const existingItem = invoiceItems.find(item => item.sku === product.sku)
+
+    if (existingItem) {
+      // If item already exists, increase quantity
+      setInvoiceItems(invoiceItems.map(item =>
+          item.sku === product.sku
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+      ))
+    } else {
+      // Add new item
+      setInvoiceItems([
+        ...invoiceItems,
+        {
+          id: Date.now(),
+          sku: product.sku,
+          name: product.name,
+          price: Number(product.value),
+          quantity: 1
+        }
+      ])
+    }
   }
 
-  const removeInvoiceItem = (id) => {
-    if (invoiceItems.length > 1) {
-      setInvoiceItems(invoiceItems.filter(item => item.id !== id))
-    }
+  const removeItemFromInvoice = (id) => {
+    setInvoiceItems(invoiceItems.filter(item => item.id !== id))
   }
 
   const updateInvoiceItem = (id, field, value) => {
@@ -174,20 +201,12 @@ export default function OrdersPage() {
     ))
   }
 
-  // --- FIX: Automatically set price when product is selected ---
-  const handleProductSelect = (itemId, productId) => {
-    const product = availableProducts.find(p => p.id.toString() === productId)
-    if (product) {
-      setInvoiceItems(invoiceItems.map(item =>
-          item.id === itemId
-              ? { ...item, product: product.name, price: product.price }
-              : item
-      ))
-    }
+  const updateCustomerInfo = (field, value) => {
+    setCustomerInfo(prev => ({ ...prev, [field]: value }))
   }
 
   const calculateSubtotal = () => {
-    return invoiceItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.price), 0)
+    return invoiceItems.reduce((sum, item) => sum + (item.quantity * item.price), 0)
   }
 
   const calculateTax = (subtotal) => {
@@ -200,17 +219,24 @@ export default function OrdersPage() {
   }
 
   const handleCreateInvoice = () => {
-    const formData = new FormData(document.getElementById('invoice-form'))
     console.log("Creating invoice with data:", {
-      companyName: formData.get('company-name'),
-      contactPerson: formData.get('contact-person'),
-      email: formData.get('email'),
-      phone: formData.get('phone'),
-      billingAddress: formData.get('billing-address'),
+      customerInfo,
       items: invoiceItems,
+      subtotal: calculateSubtotal(),
+      tax: calculateTax(calculateSubtotal()),
       total: calculateTotal()
     })
-    setInvoiceItems([{ id: 1, product: "", quantity: 1, price: 0 }])
+
+    // Reset form
+    setInvoiceItems([])
+    setCustomerInfo({
+      companyName: "",
+      contactPerson: "",
+      email: "",
+      phone: "",
+      billingAddress: ""
+    })
+    setProductSearch("")
     setIsInvoiceModalOpen(false)
     alert("Invoice created successfully!")
   }
@@ -234,18 +260,13 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* Invoice Modal */}
+          {/* Invoice Modal - Following Your Sketch Design */}
           {isInvoiceModalOpen && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                  <div className="p-6">
-                    <div className="flex justify-between items-center mb-6">
-                      <div>
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Create New Invoice</h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          Fill in the customer information and select items for the invoice.
-                        </p>
-                      </div>
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full h-full max-w-[98vw] max-h-[98vh] overflow-y-auto">
+                  <div className="p-8">
+                    <div className="flex justify-between items-center mb-8">
+                      <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Create New Invoice</h2>
                       <Button
                           variant="outline"
                           size="sm"
@@ -255,174 +276,257 @@ export default function OrdersPage() {
                       </Button>
                     </div>
 
-                    <form id="invoice-form" className="space-y-6">
-                      {/* Customer Information */}
-                      <div>
-                        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Customer Information</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label htmlFor="company-name" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              Company Name *
-                            </label>
+                    {/* Top Section: Two Columns */}
+                    <div className="grid grid-cols-2 gap-8 mb-8">
+
+                      {/* LEFT COLUMN: Product Search & Selection */}
+                      <div className="space-y-6">
+                        <div>
+                          <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Search Products</h3>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                             <Input
-                                id="company-name"
-                                name="company-name"
-                                placeholder="Enter company name"
-                                required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label htmlFor="contact-person" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              Contact Person
-                            </label>
-                            <Input
-                                id="contact-person"
-                                name="contact-person"
-                                placeholder="Enter contact name"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label htmlFor="email" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              Email Address *
-                            </label>
-                            <Input
-                                id="email"
-                                name="email"
-                                type="email"
-                                placeholder="Enter email address"
-                                required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label htmlFor="phone" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              Phone Number
-                            </label>
-                            <Input
-                                id="phone"
-                                name="phone"
-                                placeholder="Enter phone number"
+                                placeholder="Search products..."
+                                value={productSearch}
+                                onChange={(e) => setProductSearch(e.target.value)}
+                                className="pl-10 h-12 text-base"
                             />
                           </div>
                         </div>
-                        <div className="mt-4 space-y-2">
-                          <label htmlFor="billing-address" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            Billing Address
-                          </label>
-                          <textarea
-                              id="billing-address"
-                              name="billing-address"
-                              placeholder="Enter billing address"
-                              rows={3}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
-                          />
-                        </div>
-                      </div>
 
-                      {/* Items Section */}
-                      <div>
-                        <div className="flex justify-between items-center mb-4">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Invoice Items</h3>
-                          <Button type="button" onClick={addInvoiceItem} size="sm">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Item
-                          </Button>
-                        </div>
-
-                        <div className="space-y-4">
-                          {invoiceItems.map((item) => (
-                              <div key={item.id} className="flex items-end gap-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
-                                <div className="flex-1">
-                                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100 block mb-1">Product</label>
-                                  <Select onValueChange={(value) => handleProductSelect(item.id, value)}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select Product" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {availableProducts.map((product) => (
-                                          <SelectItem key={product.id} value={product.id.toString()}>
-                                            {product.name} - ${product.price}
-                                          </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <div className="w-24">
-                                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100 block mb-1">Quantity</label>
-                                  <Input
-                                      type="number"
-                                      min="1"
-                                      value={item.quantity}
-                                      onChange={(e) => updateInvoiceItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
-                                  />
-                                </div>
-
-                                <div className="w-32">
-                                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100 block mb-1">Price</label>
-                                  <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={item.price}
-                                      onChange={(e) => updateInvoiceItem(item.id, 'price', parseFloat(e.target.value) || 0)}
-                                  />
-                                </div>
-
-                                <div className="w-32">
-                                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100 block mb-1">Total</label>
-                                  <div className="h-10 flex items-center px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-gray-900 dark:text-gray-100">
-                                    ${(item.quantity * item.price).toFixed(2)}
+                        {/* Product Cards */}
+                        <div className="space-y-4 max-h-96 overflow-y-auto">
+                          {filteredProducts.map((product) => (
+                              <Card key={product.sku} className="hover:shadow-md transition-shadow">
+                                <CardContent className="p-4">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-start space-x-4 flex-1">
+                                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                                        <Package className="h-8 w-8 text-gray-400" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                                          {product.name}
+                                        </h4>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                          {product.description}
+                                        </p>
+                                        <div className="flex items-center space-x-4">
+                                          <span className="text-lg font-bold text-green-600">${product.value}</span>
+                                          <Badge variant="outline" className="text-xs">
+                                            {product.category}
+                                          </Badge>
+                                          <span className="text-sm text-gray-500">
+                                            Stock: {product.stock}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <Button
+                                        onClick={() => addItemToInvoice(product)}
+                                        size="sm"
+                                        disabled={product.stock <= 0}
+                                        className="ml-4"
+                                    >
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Add Item
+                                    </Button>
                                   </div>
-                                </div>
-
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => removeInvoiceItem(item.id)}
-                                    disabled={invoiceItems.length === 1}
-                                >
-                                  <Minus className="h-4 w-4" />
-                                </Button>
-                              </div>
+                                </CardContent>
+                              </Card>
                           ))}
                         </div>
                       </div>
 
-                      {/* Invoice Summary */}
-                      <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
-                        <div className="flex justify-end">
-                          <div className="w-64 space-y-2">
-                            <div className="flex justify-between text-gray-900 dark:text-gray-100">
-                              <span>Subtotal:</span>
-                              <span>${calculateSubtotal().toFixed(2)}</span>
+                      {/* RIGHT COLUMN: Customer Information */}
+                      <div className="space-y-6">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Customer Information</h3>
+
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                Company Name *
+                              </label>
+                              <Input
+                                  placeholder="Enter company name"
+                                  value={customerInfo.companyName}
+                                  onChange={(e) => updateCustomerInfo('companyName', e.target.value)}
+                                  className="h-12"
+                                  required
+                              />
                             </div>
-                            <div className="flex justify-between text-gray-900 dark:text-gray-100">
-                              <span>Tax (8.5%):</span>
-                              <span>${calculateTax(calculateSubtotal()).toFixed(2)}</span>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                Contact Person
+                              </label>
+                              <Input
+                                  placeholder="Enter contact name"
+                                  value={customerInfo.contactPerson}
+                                  onChange={(e) => updateCustomerInfo('contactPerson', e.target.value)}
+                                  className="h-12"
+                              />
                             </div>
-                            <div className="flex justify-between font-bold text-lg border-t border-gray-200 dark:border-gray-600 pt-2 text-gray-900 dark:text-gray-100">
-                              <span>Total:</span>
-                              <span>${calculateTotal().toFixed(2)}</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                Email Address *
+                              </label>
+                              <Input
+                                  type="email"
+                                  placeholder="Enter email address"
+                                  value={customerInfo.email}
+                                  onChange={(e) => updateCustomerInfo('email', e.target.value)}
+                                  className="h-12"
+                                  required
+                              />
                             </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                Phone Number
+                              </label>
+                              <Input
+                                  placeholder="Enter phone number"
+                                  value={customerInfo.phone}
+                                  onChange={(e) => updateCustomerInfo('phone', e.target.value)}
+                                  className="h-12"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              Billing Address
+                            </label>
+                            <textarea
+                                placeholder="Enter billing address"
+                                value={customerInfo.billingAddress}
+                                onChange={(e) => updateCustomerInfo('billingAddress', e.target.value)}
+                                rows={4}
+                                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100 resize-none"
+                            />
                           </div>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex justify-end space-x-3 border-t border-gray-200 dark:border-gray-600 pt-4">
-                        <Button variant="outline" onClick={() => setIsInvoiceModalOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button type="button" onClick={handleCreateInvoice}>
-                          Create Invoice
-                        </Button>
-                      </div>
-                    </form>
+                    {/* Bottom Section: Invoice Items & Summary */}
+                    <div className="border-t border-gray-200 dark:border-gray-600 pt-8">
+                      <h3 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Invoice Items</h3>
+
+                      {invoiceItems.length === 0 ? (
+                          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                            <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>No items added to invoice yet</p>
+                            <p className="text-sm">Search and add products from the left panel</p>
+                          </div>
+                      ) : (
+                          <div className="space-y-6">
+                            {/* Items Table */}
+                            <div className="overflow-x-auto">
+                              <table className="w-full">
+                                <thead>
+                                <tr className="border-b border-gray-200 dark:border-gray-600">
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Product</th>
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Quantity</th>
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Price</th>
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Total</th>
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-20">Action</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {invoiceItems.map((item) => (
+                                    <tr key={item.id} className="border-b border-gray-100 dark:border-gray-700">
+                                      <td className="py-4 px-4">
+                                        <div>
+                                          <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
+                                          <div className="text-sm text-gray-500 dark:text-gray-400">SKU: {item.sku}</div>
+                                        </div>
+                                      </td>
+                                      <td className="py-4 px-4">
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            value={item.quantity}
+                                            onChange={(e) => updateInvoiceItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                            className="w-20"
+                                        />
+                                      </td>
+                                      <td className="py-4 px-4">
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={item.price}
+                                            onChange={(e) => updateInvoiceItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                                            className="w-24"
+                                        />
+                                      </td>
+                                      <td className="py-4 px-4 font-semibold text-gray-900 dark:text-gray-100">
+                                        ${(item.quantity * item.price).toFixed(2)}
+                                      </td>
+                                      <td className="py-4 px-4">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => removeItemFromInvoice(item.id)}
+                                        >
+                                          <Minus className="h-4 w-4" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* Summary */}
+                            <div className="flex justify-end">
+                              <div className="w-80 space-y-3 bg-gray-50 dark:bg-gray-700 p-6 rounded-lg">
+                                <div className="flex justify-between text-gray-900 dark:text-gray-100">
+                                  <span className="font-medium">Subtotal:</span>
+                                  <span className="font-semibold">${calculateSubtotal().toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-900 dark:text-gray-100">
+                                  <span className="font-medium">Tax (8.5%):</span>
+                                  <span className="font-semibold">${calculateTax(calculateSubtotal()).toFixed(2)}</span>
+                                </div>
+                                <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+                                  <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-gray-100">
+                                    <span>Total:</span>
+                                    <span className="text-blue-600">${calculateTotal().toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-end space-x-4 mt-8 pt-6 border-t border-gray-200 dark:border-gray-600">
+                      <Button
+                          variant="outline"
+                          onClick={() => setIsInvoiceModalOpen(false)}
+                          className="px-8 py-3"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                          onClick={handleCreateInvoice}
+                          disabled={invoiceItems.length === 0 || !customerInfo.companyName || !customerInfo.email}
+                          className="px-8 py-3"
+                      >
+                        Create Invoice
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
           )}
 
+          {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {stats.map((stat, index) => {
               const Icon = stat.icon
@@ -441,6 +545,7 @@ export default function OrdersPage() {
             })}
           </div>
 
+          {/* Tab Navigation */}
           <div className="mb-6">
             <div className="flex space-x-1 border-b">
               <Button variant="ghost" className="border-b-2 border-blue-500 text-blue-600">
@@ -461,6 +566,7 @@ export default function OrdersPage() {
             </div>
           </div>
 
+          {/* Orders Table */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
