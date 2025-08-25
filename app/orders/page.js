@@ -18,6 +18,7 @@ import {
   X,
   Minus,
   Package,
+  FileText,
 } from "lucide-react"
 
 export default function OrdersPage() {
@@ -32,14 +33,20 @@ export default function OrdersPage() {
     billingAddress: ""
   })
 
-  // Mock inventory data
+  // Mock inventory data - updated with fragrance products similar to your invoice
   const inventoryItems = [
-    { sku: "SKU001", name: "Wireless Headphones", value: "99.99", stock: 50, category: "Electronics", description: "High-quality wireless headphones with noise cancellation" },
-    { sku: "SKU002", name: "Bluetooth Speaker", value: "79.99", stock: 30, category: "Electronics", description: "Portable Bluetooth speaker with excellent sound" },
-    { sku: "SKU003", name: "USB Cable", value: "19.99", stock: 100, category: "Accessories", description: "Premium USB-C to USB-A cable, 6ft length" },
-    { sku: "SKU004", name: "Phone Case", value: "24.99", stock: 75, category: "Accessories", description: "Protective phone case with drop protection" },
-    { sku: "SKU005", name: "Laptop Stand", value: "49.99", stock: 25, category: "Office", description: "Adjustable laptop stand for better ergonomics" },
-    { sku: "SKU006", name: "Wireless Mouse", value: "34.99", stock: 40, category: "Office", description: "Ergonomic wireless mouse with long battery life" },
+    { sku: "ARM001", name: "M-ARMAF ODYSSEY DUBAI CHOCOLATE GOURMAN EDITION2.02 EDP SPR", value: "18.00", stock: 50, category: "Fragrances", description: "Premium chocolate gourmet fragrance edition" },
+    { sku: "ARM002", name: "M-ARMAF ODYSSEY MANDARIN SKY 2.02 EDP SPR", value: "18.00", stock: 45, category: "Fragrances", description: "Fresh mandarin sky fragrance" },
+    { sku: "ARM003", name: "M-ARMAF ODYSSEY HOMME BLACK (M) 2.02 EDP SPR", value: "17.00", stock: 30, category: "Fragrances", description: "Black edition men's fragrance" },
+    { sku: "AHL001", name: "SPRAY AHLAM AL ARAB 100ML WITH DEO 50ML", value: "15.00", stock: 25, category: "Fragrances", description: "Traditional Arabian fragrance with deodorant" },
+    { sku: "KHA001", name: "Khamrah for Unisex Eau de Parfum Spray, 3.4oz/ 100ml", value: "19.00", stock: 40, category: "Fragrances", description: "Unisex eau de parfum spray" },
+    { sku: "RIQ001", name: "Spray Riqqa 100 Ml - (Ard)", value: "19.00", stock: 35, category: "Fragrances", description: "Ard collection fragrance spray" },
+    { sku: "LAF001", name: "SPRAY LA FEDE COVETED SHADES 100 ML", value: "15.00", stock: 20, category: "Fragrances", description: "Coveted shades fragrance collection" },
+    { sku: "LAF002", name: "SPRAY LA FEDE COVETED DIAMOND 100 ML", value: "15.00", stock: 28, category: "Fragrances", description: "Diamond collection luxury fragrance" },
+    { sku: "AFN001", name: "9 AM By AFNAN DEP Spray Unisex 3.4 oz (BLUE)", value: "24.00", stock: 15, category: "Fragrances", description: "Morning fresh unisex fragrance" },
+    { sku: "EFT001", name: "Spray Eftinaan 100ml", value: "15.00", stock: 22, category: "Fragrances", description: "Classic Eftinaan fragrance" },
+    { sku: "SHA001", name: "Shams Al Emarat Khususi Pink Blush EDP Spray 100ML", value: "20.00", stock: 18, category: "Fragrances", description: "Pink blush eau de parfum" },
+    { sku: "RAS001", name: "RASASI HAWAS FIRE 100ml", value: "32.00", stock: 12, category: "Fragrances", description: "Fire edition premium fragrance" },
   ]
 
   const stats = [
@@ -218,6 +225,139 @@ export default function OrdersPage() {
     return subtotal + calculateTax(subtotal)
   }
 
+  // PDF Generation Function
+  const generateInvoicePDF = () => {
+    // Load jsPDF from CDN
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+    script.onload = () => {
+      const { jsPDF } = window.jspdf
+      const doc = new jsPDF()
+
+      // Generate invoice number
+      const invoiceNumber = `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
+      const currentDate = new Date().toLocaleDateString()
+
+      // Company Header
+      doc.setFontSize(16)
+      doc.setFont("helvetica", "bold")
+      doc.text("Desert Storm Fragrance", 20, 30)
+
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+      doc.text("(901)319-9260", 20, 40)
+      doc.text("(229)854-4536", 20, 45)
+      doc.text("dsfragrance85@gmail.com", 20, 50)
+      doc.text("1201 Eisenhower Pkwy, Macon, GA 31206", 20, 55)
+
+      // Invoice Title
+      doc.setFontSize(18)
+      doc.setFont("helvetica", "bold")
+      doc.text("INVOICE", 150, 30)
+
+      // Invoice Details
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+      doc.text(`NUMBER: ${invoiceNumber}`, 150, 40)
+      doc.text(`DATE: ${currentDate}`, 150, 45)
+
+      // Bill To Section
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "bold")
+      doc.text("BILL TO:", 20, 80)
+
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+      doc.text(customerInfo.companyName || "Customer Name", 20, 90)
+      if (customerInfo.phone) doc.text(customerInfo.phone, 20, 95)
+      if (customerInfo.email) doc.text(customerInfo.email, 20, 100)
+      if (customerInfo.billingAddress) {
+        const addressLines = customerInfo.billingAddress.split('\n')
+        addressLines.forEach((line, index) => {
+          doc.text(line, 20, 105 + (index * 5))
+        })
+      }
+
+      // Table Headers
+      const startY = 130
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "bold")
+      doc.text("Description", 20, startY)
+      doc.text("Quantity", 120, startY)
+      doc.text("Unit price", 145, startY)
+      doc.text("Amount", 170, startY)
+
+      // Draw line under headers
+      doc.line(20, startY + 3, 190, startY + 3)
+
+      // Invoice Items
+      doc.setFont("helvetica", "normal")
+      let currentY = startY + 15
+
+      invoiceItems.forEach((item) => {
+        // Handle long product names by wrapping text
+        const splitText = doc.splitTextToSize(item.name, 90)
+        doc.text(splitText, 20, currentY)
+        doc.text(item.quantity.toString(), 125, currentY)
+        doc.text(`$${item.price.toFixed(2)}`, 145, currentY)
+        doc.text(`$${(item.quantity * item.price).toFixed(2)}`, 170, currentY)
+
+        // Adjust Y position based on text height
+        const textHeight = splitText.length * 5
+        currentY += Math.max(textHeight, 10)
+      })
+
+      // Totals Section
+      const subtotal = calculateSubtotal()
+      const total = calculateTotal()
+
+      const totalsY = currentY + 20
+      doc.setFont("helvetica", "bold")
+      doc.text("SUBTOTAL:", 145, totalsY)
+      doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY)
+
+      doc.text("TOTAL:", 145, totalsY + 10)
+      doc.text(`$${total.toFixed(2)}`, 170, totalsY + 10)
+
+      doc.text("PAID:", 145, totalsY + 20)
+      doc.text("$0.00", 170, totalsY + 20)
+
+      doc.text("BALANCE DUE:   ", 145, totalsY + 35)
+      doc.setTextColor(0, 0, 0) // Red color
+      doc.text(`$${total.toFixed(2)}`, 175, totalsY + 35, {align: "left"}) 
+      doc.setTextColor(0, 0, 0) // Reset to black
+
+      // Payment Instructions
+      doc.setFont("helvetica", "bold")
+      doc.text("Payment instructions", 20, totalsY + 20)
+
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "normal")
+      const paymentInstructions = [
+        "-Note: We now accept card payments via Stripe.",
+        "A 4% processing fee will be added to credit card",
+        "transactions.",
+        "To avoid the fee, you may pay via",
+        "-Check",
+        "-Zelle Payments to:",
+        "DSFRAGRANCE85@GMAIL.COM",
+        "or",
+        "(478)407-9793",
+        "- Note: If you prefer to pay via wire transfer,",
+        "please contact us for wire transfer instructions."
+      ]
+
+      paymentInstructions.forEach((instruction, index) => {
+        doc.text(instruction, 20, totalsY + 35 + (index * 4))
+      })
+
+      // Save the PDF
+      doc.save(`${invoiceNumber}.pdf`)
+    }
+
+    document.head.appendChild(script)
+  }
+
   const handleCreateInvoice = () => {
     console.log("Creating invoice with data:", {
       customerInfo,
@@ -226,6 +366,9 @@ export default function OrdersPage() {
       tax: calculateTax(calculateSubtotal()),
       total: calculateTotal()
     })
+
+    // Generate PDF
+    generateInvoicePDF()
 
     // Reset form
     setInvoiceItems([])
@@ -238,7 +381,114 @@ export default function OrdersPage() {
     })
     setProductSearch("")
     setIsInvoiceModalOpen(false)
-    alert("Invoice created successfully!")
+    alert("Invoice created and PDF generated successfully!")
+  }
+
+  // Function to generate PDF from existing order
+  const generateOrderInvoice = (order) => {
+    // Sample items for demonstration - in real app you'd fetch from order details
+    const sampleItems = [
+      { name: "M-ARMAF ODYSSEY DUBAI CHOCOLATE GOURMAN EDITION2.02 EDP SPR", quantity: 3, price: 18.00 },
+      { name: "Khamrah for Unisex Eau de Parfum Spray, 3.4oz/ 100ml", quantity: 2, price: 19.00 },
+      { name: "RASASI HAWAS FIRE 100ml", quantity: 1, price: 32.00 }
+    ]
+
+    // Load jsPDF from CDN
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+    script.onload = () => {
+      const { jsPDF } = window.jspdf
+      const doc = new jsPDF()
+
+      // Generate invoice number based on order ID
+      const invoiceNumber = order.orderId.replace('ORD', 'INV')
+      const currentDate = new Date().toLocaleDateString()
+
+      // Company Header
+      doc.setFontSize(16)
+      doc.setFont("helvetica", "bold")
+      doc.text("Desert Storm Fragrance", 20, 30)
+
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+      doc.text("(901)319-9260", 20, 40)
+      doc.text("(229)854-4536", 20, 45)
+      doc.text("dsfragrance85@gmail.com", 20, 50)
+      doc.text("1201 Eisenhower Pkwy, Macon, GA 31206", 20, 55)
+
+      // Invoice Title
+      doc.setFontSize(18)
+      doc.setFont("helvetica", "bold")
+      doc.text("INVOICE", 150, 30)
+
+      // Invoice Details
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+      doc.text(`NUMBER: ${invoiceNumber}`, 150, 40)
+      doc.text(`DATE: ${currentDate}`, 150, 45)
+
+      // Bill To Section
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "bold")
+      doc.text("BILL TO:", 20, 80)
+
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+      doc.text(order.customer, 20, 90)
+      doc.text(order.email, 20, 95)
+
+      // Table Headers
+      const startY = 120
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "bold")
+      doc.text("Description", 20, startY)
+      doc.text("Quantity", 120, startY)
+      doc.text("Unit price", 145, startY)
+      doc.text("Amount", 170, startY)
+
+      // Draw line under headers
+      doc.line(20, startY + 3, 190, startY + 3)
+
+      // Invoice Items
+      doc.setFont("helvetica", "normal")
+      let currentY = startY + 15
+      let subtotal = 0
+
+      sampleItems.forEach((item) => {
+        const itemTotal = item.quantity * item.price
+        subtotal += itemTotal
+
+        const splitText = doc.splitTextToSize(item.name, 90)
+        doc.text(splitText, 20, currentY)
+        doc.text(item.quantity.toString(), 125, currentY)
+        doc.text(`$${item.price.toFixed(2)}`, 145, currentY)
+        doc.text(`$${itemTotal.toFixed(2)}`, 170, currentY)
+
+        const textHeight = splitText.length * 5
+        currentY += Math.max(textHeight, 10)
+      })
+
+      // Totals Section
+      const totalsY = currentY + 20
+      doc.setFont("helvetica", "bold")
+      doc.text("SUBTOTAL:", 145, totalsY)
+      doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY)
+
+      doc.text("TOTAL:", 145, totalsY + 10)
+      doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY + 10)
+
+      doc.text("PAID:", 145, totalsY + 20)
+      doc.text("$0.00", 170, totalsY + 20)
+
+      doc.text("BALANCE DUE:", 145, totalsY + 35)
+      doc.setTextColor(255, 0, 0)
+      doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY + 35)
+
+      // Save the PDF
+      doc.save(`${invoiceNumber}.pdf`)
+    }
+
+    document.head.appendChild(script)
   }
 
   return (
@@ -305,7 +555,7 @@ export default function OrdersPage() {
                                         <Package className="h-8 w-8 text-gray-400" />
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1 text-sm">
                                           {product.name}
                                         </h4>
                                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -518,7 +768,8 @@ export default function OrdersPage() {
                           disabled={invoiceItems.length === 0 || !customerInfo.companyName || !customerInfo.email}
                           className="px-8 py-3"
                       >
-                        Create Invoice
+                        <FileText className="mr-2 h-4 w-4" />
+                        Create Invoice & PDF
                       </Button>
                     </div>
                   </div>
@@ -635,9 +886,19 @@ export default function OrdersPage() {
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{order.dueDate}</td>
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{order.assignedTo}</td>
                         <td className="py-3 px-4">
-                          <Button size="sm" variant="outline">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          <div className="flex space-x-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => generateOrderInvoice(order)}
+                                title="Generate Invoice PDF"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="outline">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                   ))}
