@@ -1,5 +1,6 @@
 "use client"
 import { useState } from "react"
+import {useEffect} from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,11 +21,33 @@ import {
   Package,
   FileText,
 } from "lucide-react"
+import {useInventoryStats} from "../../hooks/InventoryStats";
+import Orders from "./classes/OrdersManager";
 
 export default function OrdersPage() {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false)
   const [invoiceItems, setInvoiceItems] = useState([])
   const [productSearch, setProductSearch] = useState("")
+  const [orderManager, setOrderManager] = useState(null);
+  const [activeTab, setActiveTab] = useState("all") // all, processing, completed
+  const [orders, setOrders] = useState([
+    {
+      orderId: "ORD-12847",
+      customer: "Acme Corp",
+      email: "orders@acme.com",
+      phone: "(555) 123-4567",
+      billingAddress: "123 Main St\nAnytown, ST 12345",
+      items: [
+        { name: "Sample Product", quantity: 25, price: 113.90 }
+      ],
+      subtotal: 2847.50,
+      total: 2847.50,
+      status: "Processing",
+      priority: "High",
+      dueDate: "Dec 29, 2024",
+      assignedTo: "John Smith",
+    }
+  ]);
   const [customerInfo, setCustomerInfo] = useState({
     companyName: "",
     contactPerson: "",
@@ -34,105 +57,51 @@ export default function OrdersPage() {
   })
 
   // Mock inventory data - updated with fragrance products similar to your invoice
-  const inventoryItems = [
-    { sku: "ARM001", name: "M-ARMAF ODYSSEY DUBAI CHOCOLATE GOURMAN EDITION2.02 EDP SPR", value: "18.00", stock: 50, category: "Fragrances", description: "Premium chocolate gourmet fragrance edition" },
-    { sku: "ARM002", name: "M-ARMAF ODYSSEY MANDARIN SKY 2.02 EDP SPR", value: "18.00", stock: 45, category: "Fragrances", description: "Fresh mandarin sky fragrance" },
-    { sku: "ARM003", name: "M-ARMAF ODYSSEY HOMME BLACK (M) 2.02 EDP SPR", value: "17.00", stock: 30, category: "Fragrances", description: "Black edition men's fragrance" },
-    { sku: "AHL001", name: "SPRAY AHLAM AL ARAB 100ML WITH DEO 50ML", value: "15.00", stock: 25, category: "Fragrances", description: "Traditional Arabian fragrance with deodorant" },
-    { sku: "KHA001", name: "Khamrah for Unisex Eau de Parfum Spray, 3.4oz/ 100ml", value: "19.00", stock: 40, category: "Fragrances", description: "Unisex eau de parfum spray" },
-    { sku: "RIQ001", name: "Spray Riqqa 100 Ml - (Ard)", value: "19.00", stock: 35, category: "Fragrances", description: "Ard collection fragrance spray" },
-    { sku: "LAF001", name: "SPRAY LA FEDE COVETED SHADES 100 ML", value: "15.00", stock: 20, category: "Fragrances", description: "Coveted shades fragrance collection" },
-    { sku: "LAF002", name: "SPRAY LA FEDE COVETED DIAMOND 100 ML", value: "15.00", stock: 28, category: "Fragrances", description: "Diamond collection luxury fragrance" },
-    { sku: "AFN001", name: "9 AM By AFNAN DEP Spray Unisex 3.4 oz (BLUE)", value: "24.00", stock: 15, category: "Fragrances", description: "Morning fresh unisex fragrance" },
-    { sku: "EFT001", name: "Spray Eftinaan 100ml", value: "15.00", stock: 22, category: "Fragrances", description: "Classic Eftinaan fragrance" },
-    { sku: "SHA001", name: "Shams Al Emarat Khususi Pink Blush EDP Spray 100ML", value: "20.00", stock: 18, category: "Fragrances", description: "Pink blush eau de parfum" },
-    { sku: "RAS001", name: "RASASI HAWAS FIRE 100ml", value: "32.00", stock: 12, category: "Fragrances", description: "Fire edition premium fragrance" },
-  ]
+  const {inventoryItems, statistics, loading, refresh } = useInventoryStats();
+
+  useEffect(() => {
+    const manager = new Orders(orders);
+    setOrderManager(manager);
+  }, [orders]); // Update when orders change
+
+  // Don't render until orderManager is ready
+  if (!orderManager) {
+    return <div>Loading...</div>;
+  }
+
+  // Filter orders based on active tab
+  const filteredOrders = orders.filter(order => {
+    if (activeTab === "processing") return order.status === "Processing"
+    if (activeTab === "completed") return order.status === "Completed"
+    return true // "all" tab shows everything
+  })
 
   const stats = [
     {
       title: "Total Orders",
-      value: "9",
-      description: "This month",
+      value: orders.length.toString(),
+      description: "All time",
       icon: ShoppingCart,
     },
     {
-      title: "Pending Orders",
-      value: "2",
-      description: "Awaiting processing",
+      title: "Processing Orders",
+      value: orders.filter(order => order.status === "Processing").length.toString(),
+      description: "Currently processing",
       icon: Clock,
       color: "text-orange-600",
     },
     {
-      title: "Ready to Ship",
-      value: "2",
-      description: "Prepared for shipment",
+      title: "Completed Orders",
+      value: orders.filter(order => order.status === "Completed").length.toString(),
+      description: "Successfully completed",
       icon: CheckCircle,
       color: "text-green-600",
     },
     {
       title: "Revenue",
-      value: "$124.5K",
-      description: "This month",
+      value: `${(orders.reduce((sum, order) => sum + order.total, 0) / 1000).toFixed(1)}K`,
+      description: "All time",
       icon: DollarSign,
-    },
-  ]
-
-  const orders = [
-    {
-      orderId: "ORD-12847",
-      customer: "Acme Corp",
-      email: "orders@acme.com",
-      items: "25 items",
-      total: "$2,847.50",
-      status: "Processing",
-      priority: "High",
-      dueDate: "Dec 29, 2024",
-      assignedTo: "John Smith",
-    },
-    {
-      orderId: "ORD-12846",
-      customer: "TechStart Inc",
-      email: "procurement@techstart.com",
-      items: "12 items",
-      total: "$1,245.00",
-      status: "Ready to Ship",
-      priority: "Medium",
-      dueDate: "Dec 28, 2024",
-      assignedTo: "Sarah Johnson",
-    },
-    {
-      orderId: "ORD-12845",
-      customer: "Global Solutions",
-      email: "supply@globalsol.com",
-      items: "8 items",
-      total: "$567.80",
-      status: "Shipped",
-      priority: "Low",
-      dueDate: "Dec 27, 2024",
-      assignedTo: "Mike Davis",
-    },
-    {
-      orderId: "ORD-12844",
-      customer: "Innovation Labs",
-      email: "orders@innovlabs.com",
-      items: "45 items",
-      total: "$4,123.75",
-      status: "Pending",
-      priority: "High",
-      dueDate: "Dec 30, 2024",
-      assignedTo: "Lisa Chen",
-    },
-    {
-      orderId: "ORD-12843",
-      customer: "BuildCorp",
-      email: "materials@buildcorp.com",
-      items: "18 items",
-      total: "$1,876.25",
-      status: "Cancelled",
-      priority: "Medium",
-      dueDate: "Dec 28, 2024",
-      assignedTo: "Tom Wilson",
     },
   ]
 
@@ -146,15 +115,9 @@ export default function OrdersPage() {
   const getStatusColor = (status) => {
     switch (status) {
       case "Processing":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-      case "Ready to Ship":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-      case "Shipped":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-      case "Pending":
         return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-      case "Cancelled":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+      case "Completed":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
     }
@@ -212,283 +175,237 @@ export default function OrdersPage() {
     setCustomerInfo(prev => ({ ...prev, [field]: value }))
   }
 
-  const calculateSubtotal = () => {
-    return invoiceItems.reduce((sum, item) => sum + (item.quantity * item.price), 0)
+  const calculateSubtotal = (items = invoiceItems) => {
+    return items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
   }
 
   const calculateTax = (subtotal) => {
     return subtotal * 0.085
   }
 
-  const calculateTotal = () => {
-    const subtotal = calculateSubtotal()
+  const calculateTotal = (items = invoiceItems) => {
+    const subtotal = calculateSubtotal(items)
     return subtotal + calculateTax(subtotal)
   }
 
-  // PDF Generation Function
-  const generateInvoicePDF = () => {
-    // Load jsPDF from CDN
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
-    script.onload = () => {
-      const { jsPDF } = window.jspdf
-      const doc = new jsPDF()
-
-      // Generate invoice number
-      const invoiceNumber = `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
-      const currentDate = new Date().toLocaleDateString()
-
-      // Company Header
-      doc.setFontSize(16)
-      doc.setFont("helvetica", "bold")
-      doc.text("Desert Storm Fragrance", 20, 30)
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text("(901)319-9260", 20, 40)
-      doc.text("(229)854-4536", 20, 45)
-      doc.text("dsfragrance85@gmail.com", 20, 50)
-      doc.text("1201 Eisenhower Pkwy, Macon, GA 31206", 20, 55)
-
-      // Invoice Title
-      doc.setFontSize(18)
-      doc.setFont("helvetica", "bold")
-      doc.text("INVOICE", 150, 30)
-
-      // Invoice Details
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text(`NUMBER: ${invoiceNumber}`, 150, 40)
-      doc.text(`DATE: ${currentDate}`, 150, 45)
-
-      // Bill To Section
-      doc.setFontSize(12)
-      doc.setFont("helvetica", "bold")
-      doc.text("BILL TO:", 20, 80)
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text(customerInfo.companyName || "Customer Name", 20, 90)
-      if (customerInfo.phone) doc.text(customerInfo.phone, 20, 95)
-      if (customerInfo.email) doc.text(customerInfo.email, 20, 100)
-      if (customerInfo.billingAddress) {
-        const addressLines = customerInfo.billingAddress.split('\n')
-        addressLines.forEach((line, index) => {
-          doc.text(line, 20, 105 + (index * 5))
-        })
-      }
-
-      // Table Headers
-      const startY = 130
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "bold")
-      doc.text("Description", 20, startY)
-      doc.text("Quantity", 120, startY)
-      doc.text("Unit price", 145, startY)
-      doc.text("Amount", 170, startY)
-
-      // Draw line under headers
-      doc.line(20, startY + 3, 190, startY + 3)
-
-      // Invoice Items
-      doc.setFont("helvetica", "normal")
-      let currentY = startY + 15
-
-      invoiceItems.forEach((item) => {
-        // Handle long product names by wrapping text
-        const splitText = doc.splitTextToSize(item.name, 90)
-        doc.text(splitText, 20, currentY)
-        doc.text(item.quantity.toString(), 125, currentY)
-        doc.text(`$${item.price.toFixed(2)}`, 145, currentY)
-        doc.text(`$${(item.quantity * item.price).toFixed(2)}`, 170, currentY)
-
-        // Adjust Y position based on text height
-        const textHeight = splitText.length * 5
-        currentY += Math.max(textHeight, 10)
-      })
-
-      // Totals Section
-      const subtotal = calculateSubtotal()
-      const total = calculateTotal()
-
-      const totalsY = currentY + 20
-      doc.setFont("helvetica", "bold")
-      doc.text("SUBTOTAL:", 145, totalsY)
-      doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY)
-
-      doc.text("TOTAL:", 145, totalsY + 10)
-      doc.text(`$${total.toFixed(2)}`, 170, totalsY + 10)
-
-      doc.text("PAID:", 145, totalsY + 20)
-      doc.text("$0.00", 170, totalsY + 20)
-
-      doc.text("BALANCE DUE:   ", 145, totalsY + 35)
-      doc.setTextColor(0, 0, 0) // Red color
-      doc.text(`$${total.toFixed(2)}`, 175, totalsY + 35, {align: "left"}) 
-      doc.setTextColor(0, 0, 0) // Reset to black
-
-      // Payment Instructions
-      doc.setFont("helvetica", "bold")
-      doc.text("Payment instructions", 20, totalsY + 20)
-
-      doc.setFontSize(9)
-      doc.setFont("helvetica", "normal")
-      const paymentInstructions = [
-        "-Note: We now accept card payments via Stripe.",
-        "A 4% processing fee will be added to credit card",
-        "transactions.",
-        "To avoid the fee, you may pay via",
-        "-Check",
-        "-Zelle Payments to:",
-        "DSFRAGRANCE85@GMAIL.COM",
-        "or",
-        "(478)407-9793",
-        "- Note: If you prefer to pay via wire transfer,",
-        "please contact us for wire transfer instructions."
-      ]
-
-      paymentInstructions.forEach((instruction, index) => {
-        doc.text(instruction, 20, totalsY + 35 + (index * 4))
-      })
-
-      // Save the PDF
-      doc.save(`${invoiceNumber}.pdf`)
-    }
-
-    document.head.appendChild(script)
+  // Toggle order status between Processing and Completed
+  const toggleOrderStatus = (orderId) => {
+    setOrders(prevOrders =>
+        prevOrders.map(order =>
+            order.orderId === orderId
+                ? {
+                  ...order,
+                  status: order.status === "Processing" ? "Completed" : "Processing"
+                }
+                : order
+        )
+    )
   }
 
-  const handleCreateInvoice = () => {
-    console.log("Creating invoice with data:", {
-      customerInfo,
-      items: invoiceItems,
-      subtotal: calculateSubtotal(),
-      tax: calculateTax(calculateSubtotal()),
-      total: calculateTotal()
-    })
+  // Unified PDF Generation Function
+  const generateInvoicePDF = (orderData, items, isNewInvoice = false) => {
+    return new Promise((resolve, reject) => {
+      // Load jsPDF from CDN
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 
-    // Generate PDF
-    generateInvoicePDF()
+      script.onload = () => {
+        try {
+          const { jsPDF } = window.jspdf
+          const doc = new jsPDF()
 
-    // Reset form
-    setInvoiceItems([])
-    setCustomerInfo({
-      companyName: "",
-      contactPerson: "",
-      email: "",
-      phone: "",
-      billingAddress: ""
+          // Generate invoice number
+          const invoiceNumber = isNewInvoice
+              ? `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
+              : orderData.orderId.replace('ORD', 'INV')
+          const currentDate = new Date().toLocaleDateString()
+
+          // Company Header
+          doc.setFontSize(16)
+          doc.setFont("helvetica", "bold")
+          doc.text("Desert Storm Fragrance", 20, 30)
+
+          doc.setFontSize(10)
+          doc.setFont("helvetica", "normal")
+          doc.text("(901)319-9260", 20, 40)
+          doc.text("(229)854-4536", 20, 45)
+          doc.text("dsfragrance85@gmail.com", 20, 50)
+          doc.text("1201 Eisenhower Pkwy, Macon, GA 31206", 20, 55)
+
+          // Invoice Title
+          doc.setFontSize(18)
+          doc.setFont("helvetica", "bold")
+          doc.text("INVOICE", 150, 30)
+
+          // Invoice Details
+          doc.setFontSize(10)
+          doc.setFont("helvetica", "normal")
+          doc.text(`NUMBER: ${invoiceNumber}`, 150, 40)
+          doc.text(`DATE: ${currentDate}`, 150, 45)
+
+          // Bill To Section
+          doc.setFontSize(12)
+          doc.setFont("helvetica", "bold")
+          doc.text("BILL TO:", 20, 80)
+
+          doc.setFontSize(10)
+          doc.setFont("helvetica", "normal")
+          const customerName = isNewInvoice ? customerInfo.companyName : orderData.customer
+          const customerEmail = isNewInvoice ? customerInfo.email : orderData.email
+          const customerPhone = isNewInvoice ? customerInfo.phone : orderData.phone
+          const customerAddress = isNewInvoice ? customerInfo.billingAddress : orderData.billingAddress
+
+          doc.text(customerName || "Customer Name", 20, 90)
+          if (customerPhone) doc.text(customerPhone, 20, 95)
+          if (customerEmail) doc.text(customerEmail, 20, 100)
+          if (customerAddress) {
+            const addressLines = customerAddress.split('\n')
+            addressLines.forEach((line, index) => {
+              doc.text(line, 20, 105 + (index * 5))
+            })
+          }
+
+          // Table Headers
+          const startY = 130
+          doc.setFontSize(10)
+          doc.setFont("helvetica", "bold")
+          doc.text("Description", 20, startY)
+          doc.text("Quantity", 120, startY)
+          doc.text("Unit price", 145, startY)
+          doc.text("Amount", 170, startY)
+
+          // Draw line under headers
+          doc.line(20, startY + 3, 190, startY + 3)
+
+          // Invoice Items
+          doc.setFont("helvetica", "normal")
+          let currentY = startY + 15
+
+          items.forEach((item) => {
+            // Handle long product names by wrapping text
+            const splitText = doc.splitTextToSize(item.name, 90)
+            doc.text(splitText, 20, currentY)
+            doc.text(item.quantity.toString(), 125, currentY)
+            doc.text(`$${item.price.toFixed(2)}`, 145, currentY)
+            doc.text(`$${(item.quantity * item.price).toFixed(2)}`, 170, currentY)
+
+            // Adjust Y position based on text height
+            const textHeight = splitText.length * 5
+            currentY += Math.max(textHeight, 10)
+          })
+
+          // Totals Section
+          const subtotal = calculateSubtotal(items)
+          const total = calculateTotal(items)
+
+          const totalsY = currentY + 20
+          doc.setFont("helvetica", "bold")
+          doc.text("SUBTOTAL:", 145, totalsY)
+          doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY)
+
+          doc.text("TOTAL:", 145, totalsY + 10)
+          doc.text(`$${total.toFixed(2)}`, 170, totalsY + 10)
+
+          doc.text("PAID:", 145, totalsY + 20)
+          doc.text("$0.00", 170, totalsY + 20)
+
+          doc.text("BALANCE DUE:", 145, totalsY + 35)
+          doc.setTextColor(255, 0, 0) // Red color
+          doc.text(`$${total.toFixed(2)}`, 175, totalsY + 35, {align: "left"})
+          doc.setTextColor(0, 0, 0) // Reset to black
+
+          // Payment Instructions
+          doc.setFont("helvetica", "bold")
+          doc.text("Payment instructions", 20, totalsY + 20)
+
+          doc.setFontSize(9)
+          doc.setFont("helvetica", "normal")
+          const paymentInstructions = [
+            "-Note: We now accept card payments via Stripe.",
+            "A 4% processing fee will be added to credit card",
+            "transactions.",
+            "To avoid the fee, you may pay via",
+            "-Check",
+            "-Zelle Payments to:",
+            "DSFRAGRANCE85@GMAIL.COM",
+            "or",
+            "(478)407-9793",
+            "- Note: If you prefer to pay via wire transfer,",
+            "please contact us for wire transfer instructions."
+          ]
+
+          paymentInstructions.forEach((instruction, index) => {
+            doc.text(instruction, 20, totalsY + 35 + (index * 4))
+          })
+
+          // Save the PDF
+          doc.save(`${invoiceNumber}.pdf`)
+          resolve(invoiceNumber)
+        } catch (error) {
+          reject(error)
+        }
+      }
+
+      script.onerror = () => {
+        reject(new Error('Failed to load jsPDF'))
+      }
+
+      document.head.appendChild(script)
     })
-    setProductSearch("")
-    setIsInvoiceModalOpen(false)
-    alert("Invoice created and PDF generated successfully!")
+  }
+
+  const handleCreateInvoice = async () => {
+    try {
+      // Generate PDF and get invoice number
+      const invoiceNumber = await generateInvoicePDF(null, invoiceItems, true)
+
+      // Create new order object
+      const newOrder = {
+        orderId: invoiceNumber.replace('INV', 'ORD'),
+        customer: customerInfo.companyName,
+        email: customerInfo.email,
+        phone: customerInfo.phone,
+        billingAddress: customerInfo.billingAddress,
+        items: [...invoiceItems], // Create a copy
+        subtotal: calculateSubtotal(),
+        total: calculateTotal(),
+        status: "Processing",
+        priority: "Medium",
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(), // 7 days from now
+        assignedTo: "System"
+      }
+
+      // Update orders state
+      setOrders(prevOrders => [...prevOrders, newOrder])
+
+      // Reset form
+      setInvoiceItems([])
+      setCustomerInfo({
+        companyName: "",
+        contactPerson: "",
+        email: "",
+        phone: "",
+        billingAddress: ""
+      })
+      setProductSearch("")
+      setIsInvoiceModalOpen(false)
+      alert("Invoice created and PDF generated successfully!")
+
+    } catch (error) {
+      console.error("Error creating invoice:", error)
+      alert("Error creating invoice. Please try again.")
+    }
   }
 
   // Function to generate PDF from existing order
-  const generateOrderInvoice = (order) => {
-    // Sample items for demonstration - in real app you'd fetch from order details
-    const sampleItems = [
-      { name: "M-ARMAF ODYSSEY DUBAI CHOCOLATE GOURMAN EDITION2.02 EDP SPR", quantity: 3, price: 18.00 },
-      { name: "Khamrah for Unisex Eau de Parfum Spray, 3.4oz/ 100ml", quantity: 2, price: 19.00 },
-      { name: "RASASI HAWAS FIRE 100ml", quantity: 1, price: 32.00 }
-    ]
-
-    // Load jsPDF from CDN
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
-    script.onload = () => {
-      const { jsPDF } = window.jspdf
-      const doc = new jsPDF()
-
-      // Generate invoice number based on order ID
-      const invoiceNumber = order.orderId.replace('ORD', 'INV')
-      const currentDate = new Date().toLocaleDateString()
-
-      // Company Header
-      doc.setFontSize(16)
-      doc.setFont("helvetica", "bold")
-      doc.text("Desert Storm Fragrance", 20, 30)
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text("(901)319-9260", 20, 40)
-      doc.text("(229)854-4536", 20, 45)
-      doc.text("dsfragrance85@gmail.com", 20, 50)
-      doc.text("1201 Eisenhower Pkwy, Macon, GA 31206", 20, 55)
-
-      // Invoice Title
-      doc.setFontSize(18)
-      doc.setFont("helvetica", "bold")
-      doc.text("INVOICE", 150, 30)
-
-      // Invoice Details
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text(`NUMBER: ${invoiceNumber}`, 150, 40)
-      doc.text(`DATE: ${currentDate}`, 150, 45)
-
-      // Bill To Section
-      doc.setFontSize(12)
-      doc.setFont("helvetica", "bold")
-      doc.text("BILL TO:", 20, 80)
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.text(order.customer, 20, 90)
-      doc.text(order.email, 20, 95)
-
-      // Table Headers
-      const startY = 120
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "bold")
-      doc.text("Description", 20, startY)
-      doc.text("Quantity", 120, startY)
-      doc.text("Unit price", 145, startY)
-      doc.text("Amount", 170, startY)
-
-      // Draw line under headers
-      doc.line(20, startY + 3, 190, startY + 3)
-
-      // Invoice Items
-      doc.setFont("helvetica", "normal")
-      let currentY = startY + 15
-      let subtotal = 0
-
-      sampleItems.forEach((item) => {
-        const itemTotal = item.quantity * item.price
-        subtotal += itemTotal
-
-        const splitText = doc.splitTextToSize(item.name, 90)
-        doc.text(splitText, 20, currentY)
-        doc.text(item.quantity.toString(), 125, currentY)
-        doc.text(`$${item.price.toFixed(2)}`, 145, currentY)
-        doc.text(`$${itemTotal.toFixed(2)}`, 170, currentY)
-
-        const textHeight = splitText.length * 5
-        currentY += Math.max(textHeight, 10)
-      })
-
-      // Totals Section
-      const totalsY = currentY + 20
-      doc.setFont("helvetica", "bold")
-      doc.text("SUBTOTAL:", 145, totalsY)
-      doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY)
-
-      doc.text("TOTAL:", 145, totalsY + 10)
-      doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY + 10)
-
-      doc.text("PAID:", 145, totalsY + 20)
-      doc.text("$0.00", 170, totalsY + 20)
-
-      doc.text("BALANCE DUE:", 145, totalsY + 35)
-      doc.setTextColor(255, 0, 0)
-      doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY + 35)
-
-      // Save the PDF
-      doc.save(`${invoiceNumber}.pdf`)
+  const generateOrderInvoice = async (order) => {
+    try {
+      await generateInvoicePDF(order, order.items, false)
+      alert("Invoice PDF generated successfully!")
+    } catch (error) {
+      console.error("Error generating invoice:", error)
+      alert("Error generating invoice PDF. Please try again.")
     }
-
-    document.head.appendChild(script)
   }
 
   return (
@@ -499,10 +416,6 @@ export default function OrdersPage() {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orders</h1>
             </div>
             <div className="flex space-x-3">
-              <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
-                Export
-              </Button>
               <Button onClick={() => setIsInvoiceModalOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Invoice
@@ -799,20 +712,26 @@ export default function OrdersPage() {
           {/* Tab Navigation */}
           <div className="mb-6">
             <div className="flex space-x-1 border-b">
-              <Button variant="ghost" className="border-b-2 border-blue-500 text-blue-600">
-                All Orders
+              <Button
+                  variant="ghost"
+                  className={`${activeTab === "all" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-600 dark:text-gray-400"}`}
+                  onClick={() => setActiveTab("all")}
+              >
+                All Orders ({orders.length})
               </Button>
-              <Button variant="ghost" className="text-gray-600 dark:text-gray-400">
-                Pending (2)
+              <Button
+                  variant="ghost"
+                  className={`${activeTab === "processing" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-600 dark:text-gray-400"}`}
+                  onClick={() => setActiveTab("processing")}
+              >
+                Processing ({orders.filter(order => order.status === "Processing").length})
               </Button>
-              <Button variant="ghost" className="text-gray-600 dark:text-gray-400">
-                Processing (2)
-              </Button>
-              <Button variant="ghost" className="text-gray-600 dark:text-gray-400">
-                Ready to Ship (2)
-              </Button>
-              <Button variant="ghost" className="text-gray-600 dark:text-gray-400">
-                Shipped (2)
+              <Button
+                  variant="ghost"
+                  className={`${activeTab === "completed" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-600 dark:text-gray-400"}`}
+                  onClick={() => setActiveTab("completed")}
+              >
+                Completed ({orders.filter(order => order.status === "Completed").length})
               </Button>
             </div>
           </div>
@@ -822,8 +741,16 @@ export default function OrdersPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>All Orders</CardTitle>
-                  <CardDescription>Complete list of warehouse orders (9 orders)</CardDescription>
+                  <CardTitle>
+                    {activeTab === "all" && "All Orders"}
+                    {activeTab === "processing" && "Processing Orders"}
+                    {activeTab === "completed" && "Completed Orders"}
+                  </CardTitle>
+                  <CardDescription>
+                    {activeTab === "all" && `Complete list of warehouse orders (${filteredOrders.length} orders)`}
+                    {activeTab === "processing" && `Orders currently being processed (${filteredOrders.length} orders)`}
+                    {activeTab === "completed" && `Successfully completed orders (${filteredOrders.length} orders)`}
+                  </CardDescription>
                 </div>
                 <Button variant="outline" size="sm">
                   <Filter className="mr-2 h-4 w-4" />
@@ -835,18 +762,9 @@ export default function OrdersPage() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input placeholder="Search orders..." className="pl-10" />
                 </div>
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="processing">Processing</SelectItem>
-                    <SelectItem value="ready">Ready to Ship</SelectItem>
-                    <SelectItem value="shipped">Shipped</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing {filteredOrders.length} of {orders.length} orders
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -859,14 +777,12 @@ export default function OrdersPage() {
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Items</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Total</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Priority</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Due Date</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Assigned To</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Completed</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Actions</th>
                   </tr>
                   </thead>
                   <tbody>
-                  {orders.map((order, index) => (
+                  {filteredOrders.map((order, index) => (
                       <tr key={index} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
                         <td className="py-3 px-4 font-medium text-blue-600">{order.orderId}</td>
                         <td className="py-3 px-4">
@@ -875,16 +791,26 @@ export default function OrdersPage() {
                             <div className="text-sm text-gray-500 dark:text-gray-400">{order.email}</div>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{order.items}</td>
-                        <td className="py-3 px-4 font-medium text-gray-900 dark:text-gray-100">{order.total}</td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
+                          {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+                        </td>
+                        <td className="py-3 px-4 font-medium text-gray-900 dark:text-gray-100">
+                          ${order.total.toFixed(2)}
+                        </td>
                         <td className="py-3 px-4">
                           <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                         </td>
                         <td className="py-3 px-4">
-                          <Badge className={getPriorityColor(order.priority)}>{order.priority}</Badge>
+                          <div className="flex items-center">
+                            <input
+                                type="checkbox"
+                                checked={order.status === "Completed"}
+                                onChange={() => toggleOrderStatus(order.orderId)}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                title={order.status === "Completed" ? "Mark as Processing" : "Mark as Completed"}
+                            />
+                          </div>
                         </td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{order.dueDate}</td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{order.assignedTo}</td>
                         <td className="py-3 px-4">
                           <div className="flex space-x-2">
                             <Button
