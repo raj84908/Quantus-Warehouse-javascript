@@ -348,12 +348,10 @@ export default function InventoryPage() {
                             <table className="w-full">
                                 <thead>
                                 <tr className="border-b">
-                                    <th className="text-left py-3 px-4 font-medium text-foreground">SKU</th>
                                     <th className="text-left py-3 px-4 font-medium text-foreground">Product Name</th>
                                     <th className="text-left py-3 px-4 font-medium text-foreground">Category</th>
                                     <th className="text-left py-3 px-4 font-medium text-foreground">Stock</th>
                                     <th className="text-left py-3 px-4 font-medium text-foreground">Min Stock</th>
-                                    <th className="text-left py-3 px-4 font-medium text-foreground">Location</th>
                                     <th className="text-left py-3 px-4 font-medium text-foreground">Value</th>
                                     <th className="text-left py-3 px-4 font-medium text-foreground">Status</th>
                                     <th className="text-left py-3 px-4 font-medium text-foreground">Last Updated</th>
@@ -363,7 +361,6 @@ export default function InventoryPage() {
                                 <tbody>
                                 {inventoryItems.map((item, index) => (
                                     <tr key={index} className="border-b hover:bg-muted/50">
-                                        <td className="py-3 px-4 font-medium text-foreground">{item.sku}</td>
                                         <td className="py-3 px-4 text-foreground">{item.name}</td>
                                         <td className="py-3 px-4 text-muted-foreground">{item.category}</td>
                                         <td className="py-3 px-4">
@@ -380,7 +377,6 @@ export default function InventoryPage() {
                                             </div>
                                         </td>
                                         <td className="py-3 px-4 text-muted-foreground">{item.minStock}</td>
-                                        <td className="py-3 px-4 text-muted-foreground">{item.location}</td>
                                         <td className="py-3 px-4 text-foreground">${item.value}</td>
                                         <td className="py-3 px-4">
                                             <Badge className={getStatusColor(item.status)}>{item.status}</Badge>
