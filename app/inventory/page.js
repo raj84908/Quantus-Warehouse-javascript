@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Filter, Download, Upload, Plus, AlertTriangle, Package, DollarSign } from "lucide-react"
+import {Search, Filter, Download, Upload, Plus, AlertTriangle, Package, DollarSign, ImageIcon} from "lucide-react"
 import {useInventoryStats} from "../../hooks/InventoryStats";
 
 export default function InventoryPage() {
@@ -27,7 +27,10 @@ export default function InventoryPage() {
         minStock: 0,
         value: 0,
         status: 'IN_STOCK',
+        image: null,
     });
+
+    const [previewImage, setPreviewImage] = useState(null);
 
     // Debounce the search term
     useEffect(() => {
@@ -37,8 +40,35 @@ export default function InventoryPage() {
 
         return () => clearTimeout(timer);
     }, [searchTerm]);
-    
-    
+
+
+    // Handle drag & drop image
+    const handleDrop = (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith("image/")) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setNewItem(prev => ({ ...prev, image: reader.result }));
+                setPreviewImage(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith("image/")) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setNewItem(prev => ({ ...prev, image: reader.result }));
+                setPreviewImage(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+
 
     // Handle adding new item
     const handleAddItem = async (e) => {
@@ -63,7 +93,9 @@ export default function InventoryPage() {
                 minStock: 0,
                 value: 0,
                 status: 'IN_STOCK',
+                image: null,
             });
+            setpreviewImage(null)
         } catch (error) {
             console.error('Failed to add item:', error);
             alert('Failed to add item. Please try again.');
@@ -74,7 +106,7 @@ export default function InventoryPage() {
         const { name, value } = e.target;
         setNewItem(prev => ({
             ...prev,
-            [name]: name === 'quantity' || name === 'price' ? Number(value) : value
+            [name]: ['stock', 'minStock', 'value'].includes(name) ? Number(value) : value
         }));
     };
 
@@ -281,6 +313,32 @@ export default function InventoryPage() {
                                 </Select>
                             </div>
 
+                            {/* Image Upload */}
+                            <div
+                                onDrop={handleDrop}
+                                onDragOver={(e) => e.preventDefault()}
+                                className="col-span-1 md:col-span-2 border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer"
+                            >
+                                {previewImage ? (
+                                    <img src={previewImage} alt="Preview" className="h-32 object-contain mb-2" />
+                                ) : (
+                                    <>
+                                        <ImageIcon className="h-10 w-10 text-muted-foreground mb-2" />
+                                        <p className="text-sm text-muted-foreground">Drag & Drop or Click to Upload</p>
+                                    </>
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
+                                    id="fileInput"
+                                />
+                                <label htmlFor="fileInput" className="mt-2 text-xs text-primary underline cursor-pointer">
+                                    Choose File
+                                </label>
+                            </div>
+                            
                             {/* Buttons */}
                             <div className="col-span-1 md:col-span-2 flex justify-end gap-2 pt-2">
                                 <Button

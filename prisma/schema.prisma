@@ -2,7 +2,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output = "../generated/prisma"
 }
 
 datasource db {
@@ -21,6 +20,13 @@ model Product {
   value        Float
   status       Status   @default(IN_STOCK)
   lastUpdated  DateTime @updatedAt
+  image        String?
+}
+
+model User {
+  id Int @id @default(autoincrement())
+  name String
+  email String @unique
 }
 
 enum Status {
