@@ -464,8 +464,21 @@ export default function OrdersPage() {
                                 <CardContent className="p-4">
                                   <div className="flex items-start justify-between">
                                     <div className="flex items-start space-x-4 flex-1">
-                                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                                        <Package className="h-8 w-8 text-gray-400" />
+                                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
+                                        {product.image ? (
+                                            <img
+                                                src={`http://localhost:4000${product.image}`}  // Add your backend URL
+                                                alt={product.name}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                  console.log('Image failed to load:', product.image);
+                                                  e.target.style.display = 'none';
+                                                }}
+                                                onLoad={() => console.log('Image loaded successfully:', product.image)}
+                                            />
+                                        ) : (
+                                            <Package className="h-8 w-8 text-gray-400" />
+                                        )}
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1 text-sm">

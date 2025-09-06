@@ -6,9 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {Search, Filter, Download, Upload, Plus, AlertTriangle, Package, DollarSign, ImageIcon} from "lucide-react"
+import {Search, Filter, Download, Upload, Plus, AlertTriangle, Package, DollarSign, ImageIcon, Edit} from "lucide-react"
 import {useInventoryStats} from "../../hooks/InventoryStats";
+
 
 export default function InventoryPage() {
     //const [inventoryItems, setInventoryItems] = useState([]);
@@ -30,6 +32,7 @@ export default function InventoryPage() {
         image: null,
     });
 
+    const [editItem, setEditItem] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
 
     // Debounce the search term
@@ -95,12 +98,51 @@ export default function InventoryPage() {
                 status: 'IN_STOCK',
                 image: null,
             });
-            setpreviewImage(null)
+            setPreviewImage(null)
         } catch (error) {
+            alert('here')
             console.error('Failed to add item:', error);
             alert('Failed to add item. Please try again.');
         }
     };
+
+    const handleUpdateItem = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await fetch(`http://localhost:4000/api/products/${editItem.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ...newItem,
+                    stock: Number(newItem.stock),
+                    minStock: Number(newItem.minStock),
+                    value: Number(newItem.value),
+                    lastUpdated: new Date().toISOString(),
+                }),
+            });
+
+            if (!res.ok) throw new Error("Failed to update");
+
+            await refresh();
+            setEditItem(null);
+            setNewItem({
+                sku: "",
+                name: "",
+                category: "",
+                location: "",
+                stock: 0,
+                minStock: 0,
+                value: 0,
+                status: "IN_STOCK",
+                image: null,
+            });
+            setPreviewImage(null);
+        } catch (error) {
+            console.error(error);
+            alert("Failed to update item");
+        }
+    };
+
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -194,10 +236,11 @@ export default function InventoryPage() {
                 </div>
 
                 {/* Add Item Form */}
-                {showAddForm && (
+                {(showAddForm || editItem) && (
                     <div className="mb-6 p-6 border rounded-lg bg-card shadow-sm text-card-foreground">
-                        <h2 className="text-xl font-semibold mb-4">Add New Inventory Item</h2>
-                        <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <h2 className="text-xl font-semibold mb-4">{editItem ? "Edit Inventory item":"Add New Inventory Item"}
+                        </h2>
+                        <form onSubmit={editItem ? handleUpdateItem: handleAddItem} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* SKU */}
                             <div>
                                 <label className="block text-sm font-medium mb-1 text-muted-foreground">SKU</label>
@@ -443,10 +486,51 @@ export default function InventoryPage() {
                                             {item.lastUpdated ? new Date(item.lastUpdated).toLocaleDateString() : 'N/A'}
                                         </td>
                                         <td className="py-3 px-4">
-                                            <Button size="sm" variant="outline">
-                                                •••
-                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button size="sm" variant="outline">•••</Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuItem
+                                                        onClick={() => {
+                                                            setEditItem(null);
+                                                            setNewItem({
+                                                                sku: item.sku,
+                                                                name: item.name,
+                                                                category: item.category,
+                                                                location: item.location,
+                                                                stock: item.stock,
+                                                                minStock: item.minStock,
+                                                                value: item.value,
+                                                                status: item.status,
+                                                                image: item.image,
+                                                            });
+                                                            setPreviewImage(item.image || null);
+                                                        }}
+                                                    >
+                                                        Edit
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        className="text-red-600"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const res = await fetch(`http://localhost:4000/api/products/${item.id}`, {
+                                                                    method: "DELETE",
+                                                                });
+                                                                if (!res.ok) throw new Error("Failed to delete");
+                                                                await refresh();
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                                alert("Failed to delete product");
+                                                            }
+                                                        }}
+                                                    >
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </td>
+
                                     </tr>
                                 ))}
                                 </tbody>
