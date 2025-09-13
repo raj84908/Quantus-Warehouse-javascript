@@ -145,6 +145,175 @@ app.delete('/api/products/:id', async (req, res) => {
     }
 });
 
+
+
+//Stock Adjustment stuff
+
+// Add this to your route.js file
+
+// POST create a new stock adjustment record and update product stock
+app.post('/api/stock-adjustments', async (req, res) => {
+    const { productId, quantity, reason, notes, adjustedBy } = req.body;
+
+    try {
+        // Start a transaction to ensure both operations succeed or fail together
+        const result = await prisma.$transaction(async (prisma) => {
+            // 1. Get the current product
+            const product = await prisma.product.findUnique({
+                where: { id: Number(productId) }
+            });
+
+            if (!product) {
+                throw new Error('Product not found');
+            }
+
+            const previousStock = product.stock;
+            const newStock = previousStock + quantity;
+
+            // 2. Update the product stock
+            const updatedProduct = await prisma.product.update({
+                where: { id: Number(productId) },
+                data: {
+                    stock: newStock,
+                    lastUpdated: new Date(),
+                    // Update status based on new stock level compared to minStock
+                    status: newStock <= 0 ? 'OUT_OF_STOCK' :
+                        newStock <= product.minStock ? 'LOW_STOCK' : 'IN_STOCK'
+                }
+            });
+
+            // 3. Create a stock adjustment record
+            const stockAdjustment = await prisma.stockAdjustment.create({
+                data: {
+                    productId: Number(productId),
+                    quantity,
+                    previousStock,
+                    newStock,
+                    reason,
+                    notes: notes || '',
+                    adjustedBy: adjustedBy || '',
+                }
+            });
+
+            return {
+                product: updatedProduct,
+                adjustment: stockAdjustment
+            };
+        });
+
+        res.json(result);
+    } catch (error) {
+        console.error('Error creating stock adjustment:', error);
+        res.status(500).json({ error: 'Failed to create stock adjustment' });
+    }
+});
+
+// GET all stock adjustments with optional filtering
+app.get('/api/stock-adjustments', async (req, res) => {
+    const { productId, reason, startDate, endDate } = req.query;
+
+    try {
+        let whereConditions = {};
+
+        if (productId) {
+            whereConditions.productId = Number(productId);
+        }
+
+        if (reason) {
+            whereConditions.reason = reason;
+        }
+
+        // Date range filter
+        if (startDate || endDate) {
+            whereConditions.createdAt = {};
+
+            if (startDate) {
+                whereConditions.createdAt.gte = new Date(startDate);
+            }
+
+            if (endDate) {
+                whereConditions.createdAt.lte = new Date(endDate);
+            }
+        }
+
+        const adjustments = await prisma.stockAdjustment.findMany({
+            where: whereConditions,
+            include: {
+                product: {
+                    select: {
+                        name: true,
+                        sku: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        res.json(adjustments);
+    } catch (error) {
+        console.error('Error fetching stock adjustments:', error);
+        res.status(500).json({ error: 'Failed to fetch stock adjustments' });
+    }
+});
+
+// GET a specific adjustment by ID
+
+// GET stock adjustments with limit and offset
+app.get('/api/stock-adjustments', async (req, res) => {
+    const { productId, reason, startDate, endDate, limit, offset } = req.query;
+
+    try {
+        let whereConditions = {};
+
+        if (productId) {
+            whereConditions.productId = Number(productId);
+        }
+
+        if (reason) {
+            whereConditions.reason = reason;
+        }
+
+        // Date range filter
+        if (startDate || endDate) {
+            whereConditions.createdAt = {};
+
+            if (startDate) {
+                whereConditions.createdAt.gte = new Date(startDate);
+            }
+
+            if (endDate) {
+                whereConditions.createdAt.lte = new Date(endDate);
+            }
+        }
+
+        const adjustments = await prisma.stockAdjustment.findMany({
+            where: whereConditions,
+            include: {
+                product: {
+                    select: {
+                        name: true,
+                        sku: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            },
+            take: limit ? parseInt(limit) : undefined,
+            skip: offset ? parseInt(offset) : undefined
+        });
+
+        res.json(adjustments);
+    } catch (error) {
+        console.error('Error fetching stock adjustments:', error);
+        res.status(500).json({ error: 'Failed to fetch stock adjustments' });
+    }
+});
+
+
+
 // Root route
 app.get('/', (req, res) => {
     res.send('API server is running');

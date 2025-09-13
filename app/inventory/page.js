@@ -221,18 +221,22 @@ export default function InventoryPage() {
             for (const item of stockAdjustmentItems) {
                 if (item.adjustment === 0) continue; // Skip items with no adjustment
 
-                // Calculate delta (positive for add, negative for deduct)
-                const delta = item.adjustmentType === 'add'
+                // Calculate the adjustment quantity (positive for add, negative for deduct)
+                const quantity = item.adjustmentType === 'add'
                     ? Math.abs(Number(item.adjustment))
                     : -Math.abs(Number(item.adjustment));
 
-                // Use the correct endpoint with delta parameter
-                const res = await fetch(`http://localhost:4000/api/products/${item.productId}/adjust`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
+                // Use the new stock adjustment endpoint
+                const res = await fetch('http://localhost:4000/api/stock-adjustments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        delta: delta,
-                    }),
+                        productId: item.productId,
+                        quantity: quantity,
+                        reason: adjustmentReason,
+                        notes: `Stock ${item.adjustmentType === 'add' ? 'added' : 'removed'}: ${Math.abs(quantity)} units`,
+                        adjustedBy: 'User' // In a real app, you'd use the authenticated user's name
+                    })
                 });
 
                 if (!res.ok) throw new Error(`Failed to update ${item.name}`);
@@ -241,14 +245,13 @@ export default function InventoryPage() {
             // Refresh inventory and reset modal
             await refresh();
             setStockAdjustmentItems([]);
-            setProductSearch("");
-            setAdjustmentReason("");
+            setProductSearch('');
+            setAdjustmentReason('');
             setShowStockAdjustmentModal(false);
-            alert("Stock adjustments completed successfully!");
-
+            alert('Stock adjustments completed successfully!');
         } catch (error) {
-            console.error("Error adjusting stock:", error);
-            alert("Error adjusting stock. Please try again.");
+            console.error('Error adjusting stock:', error);
+            alert('Error adjusting stock. Please try again.');
         }
     };
 
