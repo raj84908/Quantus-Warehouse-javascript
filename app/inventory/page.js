@@ -513,15 +513,17 @@ export default function InventoryPage() {
                                                     <DropdownMenuItem
                                                         className="text-red-600"
                                                         onClick={async () => {
-                                                            try {
-                                                                const res = await fetch(`http://localhost:4000/api/products/${item.id}`, {
-                                                                    method: "DELETE",
-                                                                });
-                                                                if (!res.ok) throw new Error("Failed to delete");
-                                                                await refresh();
-                                                            } catch (err) {
-                                                                console.error(err);
-                                                                alert("Failed to delete product");
+                                                            if (confirm('Are you sure you want to delete this item?')) {
+                                                                try {
+                                                                    const res = await fetch(`http://localhost:4000/api/products/${item.id}`, {
+                                                                        method: "DELETE",
+                                                                    });
+                                                                    if (!res.ok) throw new Error("Failed to delete");
+                                                                    await refresh();
+                                                                } catch (err) {
+                                                                    console.error(err);
+                                                                    alert("Failed to delete product");
+                                                                }
                                                             }
                                                         }}
                                                     >

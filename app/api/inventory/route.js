@@ -113,19 +113,25 @@ app.post('/api/products', async (req, res) => {
 });
 
 // PUT update product
-app.put('/api/products/:id', async (req, res) => {
+// Adjust stock by delta (positive = add, negative = remove)
+app.put('/api/products/:id/adjust', async (req, res) => {
     const { id } = req.params;
+    const { delta } = req.body;
+
     try {
         const product = await prisma.product.update({
             where: { id: Number(id) },
-            data: req.body,
+            data: {
+                stock: { increment: delta },
+            },
         });
         res.json(product);
     } catch (error) {
-        console.error('Error updating product:', error);
-        res.status(500).json({ error: 'Failed to update product' });
+        console.error('Error adjusting stock:', error);
+        res.status(500).json({ error: 'Failed to adjust stock' });
     }
 });
+
 
 // DELETE a product
 app.delete('/api/products/:id', async (req, res) => {
