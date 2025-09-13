@@ -122,6 +122,255 @@ export default function InventoryPage() {
     }
   };
 
+                {/* Stock Adjustment Modal */}
+                {showStockAdjustmentModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
+                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full h-full max-w-[98vw] max-h-[98vh] overflow-y-auto">
+                            <div className="p-8">
+                                <div className="flex justify-between items-center mb-8">
+                                    <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Stock Adjustment</h2>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setShowStockAdjustmentModal(false)}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+
+                                {/* Top Section: Two Columns */}
+                                <div className="grid grid-cols-2 gap-8 mb-8">
+                                    {/* LEFT COLUMN: Product Search & Selection */}
+                                    <div className="space-y-6">
+                                        <div>
+                                            <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Search Products</h3>
+                                            <div className="relative">
+                                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                                                <Input
+                                                    placeholder="Search products for stock adjustment..."
+                                                    value={productSearch}
+                                                    onChange={(e) => setProductSearch(e.target.value)}
+                                                    className="pl-10 h-12 text-base"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Product Cards */}
+                                        <div className="space-y-4 max-h-96 overflow-y-auto">
+                                            {filteredProductsForAdjustment.map((product) => (
+                                                <Card key={product.sku} className="hover:shadow-md transition-shadow">
+                                                    <CardContent className="p-4">
+                                                        <div className="flex items-start justify-between">
+                                                            <div className="flex items-start space-x-4 flex-1">
+                                                                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
+                                                                    {product.image ? (
+                                                                        <img
+                                                                            src={`http://localhost:4000${product.image}`}
+                                                                            alt={product.name}
+                                                                            className="w-full h-full object-cover"
+                                                                            onError={(e) => {
+                                                                                e.target.style.display = 'none';
+                                                                            }}
+                                                                        />
+                                                                    ) : (
+                                                                        <Package className="h-8 w-8 text-gray-400" />
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1 text-sm">
+                                                                        {product.name}
+                                                                    </h4>
+                                                                    <div className="flex items-center space-x-4">
+                                                                        <Badge variant="outline" className="text-xs">
+                                                                            {product.category}
+                                                                        </Badge>
+                                                                        <span className="text-sm font-medium text-blue-600">
+                                                                            Current Stock: {product.stock}
+                                                                        </span>
+                                                                        <span className="text-sm text-gray-500">
+                                                                            SKU: {product.sku}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                onClick={() => addItemToStockAdjustment(product)}
+                                                                size="sm"
+                                                                disabled={stockAdjustmentItems.some(item => item.sku === product.sku)}
+                                                                className="ml-4"
+                                                            >
+                                                                <Plus className="h-4 w-4 mr-1" />
+                                                                {stockAdjustmentItems.some(item => item.sku === product.sku) ? 'Added' : 'Add Item'}
+                                                            </Button>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* RIGHT COLUMN: Adjustment Reason */}
+                                    <div className="space-y-6">
+                                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Adjustment Information</h3>
+
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                    Reason for Adjustment
+                                                </label>
+                                                <Select
+                                                    value={adjustmentReason}
+                                                    onValueChange={setAdjustmentReason}
+                                                >
+                                                    <SelectTrigger className="h-12">
+                                                        <SelectValue placeholder="Select reason for stock adjustment" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="damaged">Damaged Goods</SelectItem>
+                                                        <SelectItem value="received">Stock Received</SelectItem>
+                                                        <SelectItem value="returned">Customer Return</SelectItem>
+                                                        <SelectItem value="lost">Lost/Stolen</SelectItem>
+                                                        <SelectItem value="expired">Expired</SelectItem>
+                                                        <SelectItem value="recount">Physical Recount</SelectItem>
+                                                        <SelectItem value="other">Other</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                                                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Instructions</h4>
+                                                <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                                                    <li>• Search and select products from the left panel</li>
+                                                    <li>• Choose to add or deduct stock for each item</li>
+                                                    <li>• Enter the quantity to adjust</li>
+                                                    <li>• Review changes before confirming</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Bottom Section: Selected Items for Adjustment */}
+                                <div className="border-t border-gray-200 dark:border-gray-600 pt-8">
+                                    <h3 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Stock Adjustments</h3>
+
+                                    {stockAdjustmentItems.length === 0 ? (
+                                        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                                            <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                            <p>No items selected for stock adjustment</p>
+                                            <p className="text-sm">Search and add products from the left panel</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            {/* Items Table */}
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full">
+                                                    <thead>
+                                                    <tr className="border-b border-gray-200 dark:border-gray-600">
+                                                        <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Product</th>
+                                                        <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Current Stock</th>
+                                                        <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Adjustment</th>
+                                                        <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Quantity</th>
+                                                        <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">New Stock</th>
+                                                        <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-20">Action</th>
+                                                    </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                    {stockAdjustmentItems.map((item) => (
+                                                        <tr key={item.id} className="border-b border-gray-100 dark:border-gray-700">
+                                                            <td className="py-4 px-4">
+                                                                <div>
+                                                                    <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
+                                                                    <div className="text-sm text-gray-500 dark:text-gray-400">SKU: {item.sku}</div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 px-4 font-medium text-gray-900 dark:text-gray-100">
+                                                                {item.currentStock}
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                <Select
+                                                                    value={item.adjustmentType}
+                                                                    onValueChange={(value) => updateStockAdjustmentItem(item.id, 'adjustmentType', value)}
+                                                                >
+                                                                    <SelectTrigger className="w-24">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="add">
+                                                                            <div className="flex items-center">
+                                                                                <TrendingUp className="h-4 w-4 mr-1 text-green-600" />
+                                                                                Add
+                                                                            </div>
+                                                                        </SelectItem>
+                                                                        <SelectItem value="deduct">
+                                                                            <div className="flex items-center">
+                                                                                <TrendingDown className="h-4 w-4 mr-1 text-red-600" />
+                                                                                Deduct
+                                                                            </div>
+                                                                        </SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    value={item.adjustment}
+                                                                    onChange={(e) => updateStockAdjustmentItem(item.id, 'adjustment', parseInt(e.target.value) || 0)}
+                                                                    className="w-20"
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                    <span className={`font-semibold ${
+                                                                        calculateNewStock(item) !== item.currentStock
+                                                                            ? (item.adjustmentType === 'add' ? 'text-green-600' : 'text-red-600')
+                                                                            : 'text-gray-900 dark:text-gray-100'
+                                                                    }`}>
+                                                                        {calculateNewStock(item)}
+                                                                    </span>
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => removeItemFromStockAdjustment(item.id)}
+                                                                >
+                                                                    <Minus className="h-4 w-4" />
+                                                                </Button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex justify-end space-x-4 mt-8 pt-6 border-t border-gray-200 dark:border-gray-600">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setShowStockAdjustmentModal(false)}
+                                        className="px-8 py-3"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        onClick={handleStockAdjustment}
+                                        disabled={stockAdjustmentItems.length === 0 || !adjustmentReason || stockAdjustmentItems.every(item => item.adjustment === 0)}
+                                        className="px-8 py-3"
+                                    >
+                                        <Clipboard className="mr-2 h-4 w-4" />
+                                        Apply Stock Adjustments
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     {statistics.map((stat, index) => {
                         const Icon = stat.icon
@@ -143,8 +392,7 @@ export default function InventoryPage() {
                 {/* Add Item Form */}
                 {(showAddForm || editItem) && (
                     <div className="mb-6 p-6 border rounded-lg bg-card shadow-sm text-card-foreground">
-                        <h2 className="text-xl font-semibold mb-4">{editItem ? "Edit Inventory item":"Add New Inventory Item"}
-                        </h2>
+                        <h2 className="text-xl font-semibold mb-4">{editItem ? "Edit Inventory item":"Add New Inventory Item"}</h2>
                         <form onSubmit={editItem ? handleUpdateItem: handleAddItem} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* SKU */}
                             <div>
@@ -286,7 +534,7 @@ export default function InventoryPage() {
                                     Choose File
                                 </label>
                             </div>
-                            
+
                             {/* Buttons */}
                             <div className="col-span-1 md:col-span-2 flex justify-end gap-2 pt-2">
                                 <Button
@@ -298,7 +546,22 @@ export default function InventoryPage() {
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => setShowAddForm(false)}
+                                    onClick={() => {
+                                        setShowAddForm(false);
+                                        setEditItem(null);
+                                        setNewItem({
+                                            sku: '',
+                                            name: '',
+                                            category: '',
+                                            location: '',
+                                            stock: 0,
+                                            minStock: 0,
+                                            value: 0,
+                                            status: 'IN_STOCK',
+                                            image: null,
+                                        });
+                                        setPreviewImage(null);
+                                    }}
                                     className="border-border"
                                 >
                                     Cancel
@@ -371,11 +634,11 @@ export default function InventoryPage() {
                                         <td className="py-3 px-4 text-muted-foreground">{item.category}</td>
                                         <td className="py-3 px-4">
                                             <div className="flex items-center">
-                          <span
-                              className={`font-medium ${item.stock <= item.minStock ? "text-red-600 dark:text-red-400" : "text-foreground"}`}
-                          >
-                            {item.stock}
-                          </span>
+                                                <span
+                                                    className={`font-medium ${item.stock <= item.minStock ? "text-red-600 dark:text-red-400" : "text-foreground"}`}
+                                                >
+                                                    {item.stock}
+                                                </span>
                                                 {item.stock <= item.minStock && item.stock > 0 && (
                                                     <AlertTriangle className="ml-1 h-4 w-4 text-orange-500"/>
                                                 )}
@@ -398,7 +661,7 @@ export default function InventoryPage() {
                                                 <DropdownMenuContent>
                                                     <DropdownMenuItem
                                                         onClick={() => {
-                                                            setEditItem(null);
+                                                            setEditItem(item);
                                                             setNewItem({
                                                                 sku: item.sku,
                                                                 name: item.name,
@@ -437,7 +700,6 @@ export default function InventoryPage() {
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </td>
-
                                     </tr>
                                 ))}
                                 </tbody>
