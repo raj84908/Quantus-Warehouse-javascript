@@ -58,13 +58,40 @@ export default function OrdersPage() {
     billingAddress: ""
   })
 
+
+  const fetchOrders = async () => {
+    try {
+      const response = await fetch('/api/orders');
+      if (!response.ok) throw new Error('Failed to fetch orders');
+
+      const data = await response.json();
+      setOrders(data);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      // Keep the initial mock data if fetch fails
+    }
+  };
+  // Add this after your state declarations
+  useEffect(() => {
+    const loadOrders = async () => {
+      await fetchOrders();
+    };
+
+    loadOrders(); // call it here
+  }, []);
+
+
   // Mock inventory data - updated with fragrance products similar to your invoice
   const {inventoryItems, statistics, loading, refresh } = useInventoryStats();
 
+  
+  
   useEffect(() => {
     const manager = new Orders(orders);
     setOrderManager(manager);
   }, [orders]); // Update when orders change
+  
+  
 
   // Don't render until orderManager is ready
   if (!orderManager) {
@@ -191,18 +218,39 @@ export default function OrdersPage() {
   }
 
   // Toggle order status between Processing and Completed
-  const toggleOrderStatus = (orderId) => {
-    setOrders(prevOrders =>
-        prevOrders.map(order =>
-            order.orderId === orderId
-                ? {
-                  ...order,
-                  status: order.status === "Processing" ? "Completed" : "Processing"
-                }
-                : order
-        )
-    )
-  }
+  const toggleOrderStatus = async (orderId) => {
+    try {
+      // Find the order in our state
+      const order = orders.find(o => o.orderId === orderId);
+      if (!order) return;
+
+      // Determine the new status
+      const newStatus = order.status === "Processing" ? "Completed" : "Processing";
+
+      // Update in the database
+      const response = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update order status');
+
+      // Update the local state
+      setOrders(prevOrders =>
+          prevOrders.map(o =>
+              o.orderId === orderId
+                  ? { ...o, status: newStatus }
+                  : o
+          )
+      );
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Failed to update order status. Please try again.');
+    }
+  };
 
   // Unified PDF Generation Function
   const generateInvoicePDF = (orderData, items, isNewInvoice = false) => {
@@ -359,7 +407,7 @@ export default function OrdersPage() {
   const handleCreateInvoice = async () => {
     try {
       // Generate PDF and get invoice number
-      const invoiceNumber = await generateInvoicePDF(null, invoiceItems, true)
+      const invoiceNumber = await generateInvoicePDF(null, invoiceItems, true);
 
       // Create new order object
       const newOrder = {
@@ -368,36 +416,56 @@ export default function OrdersPage() {
         email: customerInfo.email,
         phone: customerInfo.phone,
         billingAddress: customerInfo.billingAddress,
-        items: [...invoiceItems], // Create a copy
+        items: invoiceItems.map(item => ({
+          sku: item.sku,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          productId: inventoryItems.find(p => p.sku === item.sku)?.id || null
+        })),
         subtotal: calculateSubtotal(),
         total: calculateTotal(),
         status: "Processing",
         priority: "Medium",
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(), // 7 days from now
-        assignedTo: "System"
-      }
+        assignedTo: "System",
+        adjustedBy: "User" // Or the logged-in username if you have authentication
+      };
 
-      // Update orders state
-      setOrders(prevOrders => [...prevOrders, newOrder])
+      // Save to database
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newOrder),
+      });
+
+      if (!response.ok) throw new Error('Failed to save order');
+
+      const savedOrder = await response.json();
+
+      // Update orders state with the saved order from the database
+      setOrders(prevOrders => [savedOrder.order, ...prevOrders]);
 
       // Reset form
-      setInvoiceItems([])
+      setInvoiceItems([]);
       setCustomerInfo({
         companyName: "",
         contactPerson: "",
         email: "",
         phone: "",
         billingAddress: ""
-      })
-      setProductSearch("")
-      setIsInvoiceModalOpen(false)
-      alert("Invoice created and PDF generated successfully!")
+      });
+      setProductSearch("");
+      setIsInvoiceModalOpen(false);
+      alert("Invoice created and PDF generated successfully!");
 
     } catch (error) {
-      console.error("Error creating invoice:", error)
-      alert("Error creating invoice. Please try again.")
+      console.error("Error creating invoice:", error);
+      alert("Error creating invoice. Please try again.");
     }
-  }
+  };
 
   // Function to generate PDF from existing order
   const generateOrderInvoice = async (order) => {

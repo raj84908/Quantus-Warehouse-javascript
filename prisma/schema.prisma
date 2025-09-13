@@ -40,6 +40,36 @@ model Product {
   stockAdjustments StockAdjustment[]
 
 }
+//Orders 
+
+model Order {
+  id            Int           @id @default(autoincrement())
+  orderId       String        @unique
+  customer      String
+  email         String
+  phone         String?
+  billingAddress String?
+  subtotal      Float
+  total         Float
+  status        String        // "Processing" or "Completed"
+  priority      String        // "High", "Medium", "Low"
+  dueDate       String
+  assignedTo    String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  sku       String
+  name      String
+  price     Float
+  quantity  Int
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   Int
+  productId Int?     // Optional reference to the actual product
+}
 
 
 

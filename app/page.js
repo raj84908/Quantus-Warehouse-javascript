@@ -12,11 +12,37 @@ export default function Dashboard() {
   const { inventoryItems, stats, loading, refresh } = useInventoryStats();
   const [recentActivity, setRecentActivity] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(true);
+  const [ordersToday, setOrdersToday] = useState(0);
 
   // Fetch recent stock adjustments when component mounts
   useEffect(() => {
     fetchRecentActivity();
   }, []);
+  useEffect(() => {
+    fetchRecentOrders();
+  }, [])
+
+  useEffect(() => {
+    fetchOrdersToday();
+  }, []);
+
+  const fetchOrdersToday = async () => {
+    try {
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+      const res = await fetch(`http://localhost:4000/api/orders?start=${startOfDay.toISOString()}&end=${endOfDay.toISOString()}`);
+      if (!res.ok) throw new Error("Failed to fetch today's orders");
+      const data = await res.json();
+      setOrdersToday(data.length);
+    } catch (err) {
+      console.error(err);
+      setOrdersToday(0);
+    }
+  };
 
   // Function to fetch recent stock adjustments
   const fetchRecentActivity = async () => {
@@ -73,6 +99,32 @@ export default function Dashboard() {
     }
   };
 
+  const fetchRecentOrders = async () => {
+    setIsOrdersLoading(true);
+    try {
+      const response = await fetch('http://localhost:4000/api/orders?limit=5'); // <-- optional limit
+      if (!response.ok) throw new Error('Failed to fetch recent orders');
+      const data = await response.json();
+
+      const formattedOrders = data.map(order => ({
+        orderId: order.orderId,
+        customer: order.customer,
+        items: `${order.items.length} items`,
+        status: order.status,
+        priority: order.priority,
+        date: new Date(order.createdAt).toLocaleDateString(),
+      }));
+
+      setRecentOrders(formattedOrders);
+    } catch (error) {
+      console.error('Error fetching recent orders:', error);
+      setRecentOrders([]);
+    } finally {
+      setIsOrdersLoading(false);
+    }
+  };
+  
+
   // Helper function to format time differences
   const getTimeAgo = (date) => {
     const now = new Date();
@@ -93,37 +145,37 @@ export default function Dashboard() {
   const statistics = [
     {
       title: "Total Items",
-      value: stats.totalItems,
-      change: "+2.5%",
+      value: stats.totalItems || 0,
+      change: stats.totalChangePct ? `${stats.totalChangePct}%` : "+0%",
       changeText: "from last month",
       icon: Package,
-      color: "text-blue-600",
+      color: "text-blue-600"
     },
     {
       title: "Low Stock Items",
-      value: stats.lowStock,
-      change: "+3 items",
+      value: stats.lowStock || 0,
+      change: stats.lowStockChange ? `${stats.lowStockChange} items` : "+0 items",
       changeText: "need restocking",
       icon: AlertTriangle,
-      color: "text-orange-600",
+      color: "text-orange-600"
     },
     {
       title: "Orders Today",
-      value: "156",
-      change: "+12%",
+      value: ordersToday,
+      change: stats.ordersChangePct ? `${stats.ordersChangePct}%` : "+0%",
       changeText: "from yesterday",
       icon: ShoppingCart,
-      color: "text-green-600",
+      color: "text-green-600"
     },
     {
       title: "Warehouse Value",
-      value: `$${stats.totalValue.toLocaleString()}`,
-      change: "-1.2%",
+      value: `$${stats.totalValue?.toLocaleString() || 0}`,
+      change: stats.valueChangePct ? `${stats.valueChangePct}%` : "0%",
       changeText: "from last month",
       icon: DollarSign,
-      color: "text-purple-600",
-    },
-  ]
+      color: "text-purple-600"
+    }
+  ];
 
   const topProducts = [
     {
@@ -149,25 +201,6 @@ export default function Dashboard() {
     },
   ]
 
-  const recentOrders = [
-    {
-      orderId: "#ORD-12847",
-      customer: "Acme Corp",
-      items: "25 items",
-      status: "Processing",
-      priority: "High",
-      date: "Dec 27, 2024",
-    },
-    {
-      orderId: "#ORD-12846",
-      customer: "TechStart Inc",
-      items: "12 items",
-      status: "Ready to Ship",
-      priority: "Medium",
-      date: "Dec 27, 2024",
-    },
-  ]
-
   return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-6 py-8">
@@ -175,38 +208,37 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           </div>
 
+          {/* STATISTICS CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {statistics.map((stat, index) => {
-              const Icon = stat.icon
+            {statistics.map((stat, i) => {
+              const Icon = stat.icon;
               return (
-                  <Card key={index}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <Card key={i}>
+                    <CardHeader className="flex justify-between pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
                       <Icon className={`h-4 w-4 ${stat.color}`} />
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">{stat.value}</div>
                       <p className="text-xs text-muted-foreground">
-                    <span
-                        className={
-                          stat.change.startsWith("+")
-                              ? "text-green-600 dark:text-green-400"
-                              : stat.change.startsWith("-")
-                                  ? "text-red-600 dark:text-red-400"
-                                  : "text-orange-600 dark:text-orange-400"
-                        }
-                    >
+                    <span className={
+                      stat.change.startsWith("+")
+                          ? "text-green-600 dark:text-green-400"
+                          : stat.change.startsWith("-")
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-orange-600 dark:text-orange-400"
+                    }>
                       {stat.change}
-                    </span>{" "}
-                        {stat.changeText}
+                    </span> {stat.changeText}
                       </p>
                     </CardContent>
                   </Card>
-              )
+              );
             })}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Recent Activity Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
@@ -232,10 +264,15 @@ export default function Dashboard() {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                      {recentActivity.map((activity, index) => (
+                      {recentActivity.slice(0, 5).map((activity, index) => (
                           <div key={index} className="flex items-start space-x-4">
-                            <div className={`w-2 h-2 rounded-full mt-2 ${activity.color.split(" ")[0]} ${activity.color.split(" ")[1]} dark:${activity.color.split(" ")[3]} dark:${activity.color.split(" ")[4]}`}>
-                            </div>
+                            <div
+                                className={`w-2 h-2 rounded-full mt-2 ${
+                                    activity.color.split(" ")[0]
+                                } ${activity.color.split(" ")[1]} dark:${
+                                    activity.color.split(" ")[3]
+                                } dark:${activity.color.split(" ")[4]}`}
+                            ></div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-foreground">{activity.title}</p>
                               <p className="text-sm text-muted-foreground">{activity.description}</p>
@@ -250,16 +287,11 @@ export default function Dashboard() {
                       ))}
                       <div className="pt-2 text-right">
                         <Link href="/inventory/adjustments">
-                          <Button
-                              variant="link"
-                              size="sm"
-                              className="text-sm"
-                          >
+                          <Button variant="link" size="sm" className="text-sm">
                             View all activity
                           </Button>
                         </Link>
                       </div>
-
                     </div>
                 )}
               </CardContent>
@@ -272,24 +304,19 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {topProducts.map((product, index) => (
-                      <div key={index} className="flex items-center justify-between">
+                  {inventoryItems.slice(0,5).map((item, i) => (
+                      <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-primary">{product.avatar}</span>
+                            <span className="text-sm font-medium text-primary">{item.name.charAt(0)}</span>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-foreground">{product.name}</p>
-                            <p className="text-xs text-muted-foreground">SKU: {product.sku}</p>
+                            <p className="text-sm font-medium text-foreground">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-medium text-foreground">{product.units}</p>
-                          <p
-                              className={`text-xs ${product.change.startsWith("+") ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                          >
-                            {product.change}
-                          </p>
+                          <p className="text-sm font-medium text-foreground">{item.stock} units</p>
                         </div>
                       </div>
                   ))}
@@ -305,56 +332,47 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium text-foreground">Order ID</th>
-                    <th className="text-left py-3 px-4 font-medium text-foreground">Customer</th>
-                    <th className="text-left py-3 px-4 font-medium text-foreground">Items</th>
-                    <th className="text-left py-3 px-4 font-medium text-foreground">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-foreground">Priority</th>
-                    <th className="text-left py-3 px-4 font-medium text-foreground">Date</th>
-                    <th className="text-left py-3 px-4 font-medium text-foreground">Actions</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  {recentOrders.map((order, index) => (
-                      <tr key={index} className="border-b hover:bg-muted/50">
-                        <td className="py-3 px-4 font-medium text-primary">{order.orderId}</td>
-                        <td className="py-3 px-4 text-foreground">{order.customer}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{order.items}</td>
-                        <td className="py-3 px-4">
-                          <Badge
-                              className={
-                                order.status === "Processing"
-                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
-                                    : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                              }
-                          >
-                            {order.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge
-                              className={
-                                order.priority === "High"
-                                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-                                    : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
-                              }
-                          >
-                            {order.priority}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground">{order.date}</td>
-                        <td className="py-3 px-4">
-                          <Button size="sm" variant="outline">
-                            •••
-                          </Button>
-                        </td>
-                      </tr>
-                  ))}
-                  </tbody>
-                </table>
+                {isOrdersLoading
+                    ? <div className="flex justify-center items-center h-48"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
+                    : recentOrders.length === 0
+                        ? <p className="text-center text-muted-foreground py-8">No recent orders</p>
+                        : <table className="w-full">
+                          <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 px-4 font-medium text-foreground">Order ID</th>
+                            <th className="text-left py-3 px-4 font-medium text-foreground">Customer</th>
+                            <th className="text-left py-3 px-4 font-medium text-foreground">Items</th>
+                            <th className="text-left py-3 px-4 font-medium text-foreground">Status</th>
+                            <th className="text-left py-3 px-4 font-medium text-foreground">Priority</th>
+                            <th className="text-left py-3 px-4 font-medium text-foreground">Date</th>
+                            <th className="text-left py-3 px-4 font-medium text-foreground">Actions</th>
+                          </tr>
+                          </thead>
+                          <tbody>
+                          {recentOrders.map((order,i) => (
+                              <tr key={i} className="border-b hover:bg-muted/50">
+                                <td className="py-3 px-4 font-medium text-primary">{order.orderId}</td>
+                                <td className="py-3 px-4 text-foreground">{order.customer}</td>
+                                <td className="py-3 px-4 text-muted-foreground">{order.items}</td>
+                                <td className="py-3 px-4">
+                                  <Badge className={order.status === "Processing" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300" : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"}>
+                                    {order.status}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <Badge className={order.priority === "High" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300" : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"}>
+                                    {order.priority}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 px-4 text-muted-foreground">{order.date}</td>
+                                <td className="py-3 px-4">
+                                  <Button size="sm" variant="outline">•••</Button>
+                                </td>
+                              </tr>
+                          ))}
+                          </tbody>
+                        </table>
+                }
               </div>
             </CardContent>
           </Card>

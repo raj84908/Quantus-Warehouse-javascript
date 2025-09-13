@@ -313,6 +313,50 @@ app.get('/api/stock-adjustments', async (req, res) => {
 });
 
 
+// GET all orders
+app.get('/api/orders', async (req, res) => {
+    try {
+        const orders = await prisma.order.findMany({
+            include: { items: true },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(orders);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch orders' });
+    }
+});
+
+// POST create a new order
+app.post('/api/orders', async (req, res) => {
+    const data = req.body;
+    try {
+        const order = await prisma.order.create({
+            data: {
+                orderId: data.orderId,
+                customer: data.customer,
+                email: data.email,
+                phone: data.phone || null,
+                billingAddress: data.billingAddress || null,
+                subtotal: data.subtotal,
+                total: data.total,
+                status: data.status,
+                priority: data.priority,
+                dueDate: data.dueDate,
+                assignedTo: data.assignedTo,
+                items: { create: data.items }
+            },
+            include: { items: true }
+        });
+        res.status(201).json(order);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create order' });
+    }
+});
+
+
+
 
 // Root route
 app.get('/', (req, res) => {
