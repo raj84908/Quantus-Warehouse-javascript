@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback ,useMemo} from 'react';
 import { getProducts, addProduct } from '../../lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -50,9 +50,35 @@ export default function InventoryPage() {
         image: null,
     });
 
+    
+    
     const [editItem, setEditItem] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
 
+    const filteredInventoryItems = useMemo(() => {
+        let filtered = inventoryItems;
+
+        // Apply search filter
+        if (debouncedSearchTerm) {
+            filtered = filtered.filter(item =>
+                item.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                item.sku.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                item.category.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                item.location.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+            );
+        }
+
+        // Apply category filter
+        if (selectedCategory !== "all") {
+            filtered = filtered.filter(item =>
+                item.category.toLowerCase() === selectedCategory.toLowerCase()
+            );
+        }
+
+        return filtered;
+    }, [inventoryItems, debouncedSearchTerm, selectedCategory]);
+    
+    
     // Debounce the search term
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -312,14 +338,6 @@ export default function InventoryPage() {
                         <h1 className="text-3xl font-bold text-foreground">Inventory</h1>
                     </div>
                     <div className="flex space-x-3">
-                        <Button variant="outline">
-                            <Download className="mr-2 h-4 w-4"/>
-                            Export
-                        </Button>
-                        <Button variant="outline">
-                            <Upload className="mr-2 h-4 w-4"/>
-                            Import
-                        </Button>
                         <Button variant="outline" onClick={() => setShowStockAdjustmentModal(true)}>
                             <Clipboard className="mr-2 h-4 w-4"/>
                             Adjust Stock
@@ -837,7 +855,7 @@ export default function InventoryPage() {
                                 </tr>
                                 </thead>
                                 <tbody>
-                                {inventoryItems.map((item, index) => (
+                                {filteredInventoryItems.map((item, index) => (
                                     <tr key={index} className="border-b hover:bg-muted/50">
                                         <td className="py-3 px-4 text-foreground">{item.name}</td>
                                         <td className="py-3 px-4 text-muted-foreground">{item.category}</td>

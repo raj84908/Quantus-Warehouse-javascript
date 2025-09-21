@@ -123,7 +123,7 @@ export default function Dashboard() {
       setIsOrdersLoading(false);
     }
   };
-  
+
 
   // Helper function to format time differences
   const getTimeAgo = (date) => {
@@ -146,32 +146,32 @@ export default function Dashboard() {
     {
       title: "Total Items",
       value: stats.totalItems || 0,
-      change: stats.totalChangePct ? `${stats.totalChangePct}%` : "+0%",
-      changeText: "from last month",
+      //change: stats.totalChangePct ? `${stats.totalChangePct}%` : "+0%",
+      //changeText: "from last month",
       icon: Package,
       color: "text-blue-600"
     },
     {
       title: "Low Stock Items",
       value: stats.lowStock || 0,
-      change: stats.lowStockChange ? `${stats.lowStockChange} items` : "+0 items",
-      changeText: "need restocking",
+      //change: stats.lowStockChange ? `${stats.lowStockChange} items` : "+0 items",
+      //changeText: "need restocking",
       icon: AlertTriangle,
       color: "text-orange-600"
     },
     {
       title: "Orders Today",
       value: ordersToday,
-      change: stats.ordersChangePct ? `${stats.ordersChangePct}%` : "+0%",
-      changeText: "from yesterday",
+      //change: stats.ordersChangePct ? `${stats.ordersChangePct}%` : "+0%",
+      //changeText: "from yesterday",
       icon: ShoppingCart,
       color: "text-green-600"
     },
     {
       title: "Warehouse Value",
       value: `$${stats.totalValue?.toLocaleString() || 0}`,
-      change: stats.valueChangePct ? `${stats.valueChangePct}%` : "0%",
-      changeText: "from last month",
+      //change: stats.valueChangePct ? `${stats.valueChangePct}%` : "0%",
+      //changeText: "from last month",
       icon: DollarSign,
       color: "text-purple-600"
     }
@@ -182,21 +182,21 @@ export default function Dashboard() {
       name: "Widget Pro A",
       sku: "WPA-001",
       units: "847 units",
-      change: "+15%",
+      //change: "+15%",
       avatar: "W",
     },
     {
       name: "Component X",
       sku: "CX-205",
       units: "623 units",
-      change: "+8%",
+      //change: "+8%",
       avatar: "C",
     },
     {
       name: "Premium Kit",
       sku: "PK-150",
       units: "445 units",
-      change: "-3%",
+      //change: "-3%",
       avatar: "P",
     },
   ]
@@ -221,15 +221,6 @@ export default function Dashboard() {
                     <CardContent>
                       <div className="text-2xl font-bold">{stat.value}</div>
                       <p className="text-xs text-muted-foreground">
-                    <span className={
-                      stat.change.startsWith("+")
-                          ? "text-green-600 dark:text-green-400"
-                          : stat.change.startsWith("-")
-                              ? "text-red-600 dark:text-red-400"
-                              : "text-orange-600 dark:text-orange-400"
-                    }>
-                      {stat.change}
-                    </span> {stat.changeText}
                       </p>
                     </CardContent>
                   </Card>
@@ -237,9 +228,9 @@ export default function Dashboard() {
             })}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Recent Activity Card */}
-            <Card>
+          {/* RECENT ACTIVITY CARD - NOW FULL WIDTH */}
+          <div className="mb-8">
+            <Card className="w-full">
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
                 <CardDescription>Latest inventory movements and updates</CardDescription>
@@ -263,64 +254,35 @@ export default function Dashboard() {
                       </Button>
                     </div>
                 ) : (
-                    <div className="space-y-4">
-                      {recentActivity.slice(0, 5).map((activity, index) => (
-                          <div key={index} className="flex items-start space-x-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {recentActivity.slice(0, 6).map((activity, index) => (
+                          <div key={index} className="flex items-start space-x-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                             <div
-                                className={`w-2 h-2 rounded-full mt-2 ${
-                                    activity.color.split(" ")[0]
-                                } ${activity.color.split(" ")[1]} dark:${
-                                    activity.color.split(" ")[3]
-                                } dark:${activity.color.split(" ")[4]}`}
+                                className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${activity.color.split(" ")[0]} ${activity.color.split(" ")[1]} dark:${activity.color.split(" ")[3]} dark:${activity.color.split(" ")[4]}`}
                             ></div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-foreground">{activity.title}</p>
                               <p className="text-sm text-muted-foreground">{activity.description}</p>
                               {activity.reason && (
-                                  <Badge variant="outline" className="mt-1 text-xs">
+                                  <Badge variant="outline" className="mt-2 text-xs">
                                     Reason: {activity.reason}
                                   </Badge>
                               )}
+                              <div className="text-xs text-muted-foreground mt-1">{activity.time}</div>
                             </div>
-                            <div className="text-xs text-muted-foreground">{activity.time}</div>
                           </div>
                       ))}
-                      <div className="pt-2 text-right">
-                        <Link href="/inventory/adjustments">
-                          <Button variant="link" size="sm" className="text-sm">
-                            View all activity
-                          </Button>
-                        </Link>
-                      </div>
                     </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Moving Products</CardTitle>
-                <CardDescription>Most frequently ordered items this week</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {inventoryItems.slice(0,5).map((item, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-primary">{item.name.charAt(0)}</span>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{item.name}</p>
-                            <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-foreground">{item.stock} units</p>
-                        </div>
-                      </div>
-                  ))}
-                </div>
+                {!isLoading && recentActivity.length > 0 && (
+                    <div className="pt-4 text-right border-t mt-6">
+                      <Link href="/inventory/adjustments">
+                        <Button variant="link" size="sm" className="text-sm">
+                          View all activity
+                        </Button>
+                      </Link>
+                    </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -345,7 +307,6 @@ export default function Dashboard() {
                             <th className="text-left py-3 px-4 font-medium text-foreground">Status</th>
                             <th className="text-left py-3 px-4 font-medium text-foreground">Priority</th>
                             <th className="text-left py-3 px-4 font-medium text-foreground">Date</th>
-                            <th className="text-left py-3 px-4 font-medium text-foreground">Actions</th>
                           </tr>
                           </thead>
                           <tbody>
@@ -365,9 +326,6 @@ export default function Dashboard() {
                                   </Badge>
                                 </td>
                                 <td className="py-3 px-4 text-muted-foreground">{order.date}</td>
-                                <td className="py-3 px-4">
-                                  <Button size="sm" variant="outline">•••</Button>
-                                </td>
                               </tr>
                           ))}
                           </tbody>
