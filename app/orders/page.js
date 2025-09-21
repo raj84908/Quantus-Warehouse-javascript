@@ -185,7 +185,8 @@ export default function OrdersPage() {
           sku: product.sku,
           name: product.name,
           price: Number(product.value),
-          quantity: 1
+          quantity: 1,
+          category: product.category?.name
         }
       ])
     }
@@ -583,7 +584,7 @@ export default function OrdersPage() {
                                         <div className="flex items-center space-x-4">
                                           <span className="text-lg font-bold text-green-600">${product.value}</span>
                                           <Badge variant="outline" className="text-xs">
-                                            {product.category}
+                                            {product.category?.name}
                                           </Badge>
                                           <span className="text-sm text-gray-500">
                                             Stock: {product.stock}
