@@ -37,6 +37,7 @@ export default function InventoryPage() {
     const [showStockAdjustmentModal, setShowStockAdjustmentModal] = useState(false);
     const [stockAdjustmentItems, setStockAdjustmentItems] = useState([]);
     const [productSearch, setProductSearch] = useState("");
+    const [categories, setCategories] = useState([]);
     const [adjustmentReason, setAdjustmentReason] = useState("");
     const [newItem, setNewItem] = useState({
         sku: '',
@@ -63,7 +64,7 @@ export default function InventoryPage() {
             filtered = filtered.filter(item =>
                 item.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
                 item.sku.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-                item.category.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                item.category.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
                 item.location.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
             );
         }
@@ -71,7 +72,7 @@ export default function InventoryPage() {
         // Apply category filter
         if (selectedCategory !== "all") {
             filtered = filtered.filter(item =>
-                item.category.toLowerCase() === selectedCategory.toLowerCase()
+                item.category.name.toLowerCase() === selectedCategory.toLowerCase()
             );
         }
 
@@ -87,6 +88,20 @@ export default function InventoryPage() {
 
         return () => clearTimeout(timer);
     }, [searchTerm]);
+
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const res = await fetch('http://localhost:4000/api/categories'); // make sure you have this route
+                const data = await res.json();
+                setCategories(data);
+            } catch (err) {
+                console.error('Failed to fetch categories:', err);
+            }
+        };
+
+        fetchCategories();
+    }, []);
 
     // Handle drag & drop image
     const handleDrop = (e) => {
@@ -284,7 +299,7 @@ export default function InventoryPage() {
     // Filter products for stock adjustment based on search
     const filteredProductsForAdjustment = inventoryItems.filter(item =>
         item.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-        item.category.toLowerCase().includes(productSearch.toLowerCase()) ||
+        item.category.name.toLowerCase().includes(productSearch.toLowerCase()) ||
         item.sku.toLowerCase().includes(productSearch.toLowerCase())
     );
 
@@ -649,19 +664,16 @@ export default function InventoryPage() {
                             <div>
                                 <label className="block text-sm font-medium mb-1 text-muted-foreground">Category</label>
                                 <Select
-                                    value={newItem.category || ''}
-                                    onValueChange={(value) =>
-                                        setNewItem((prev) => ({ ...prev, category: value }))
-                                    }
+                                    value={newItem.categoryId || ""}
+                                    onValueChange={(id) => setNewItem(prev => ({ ...prev, categoryId: Number(id) }))}
                                 >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select category" />
+                                    <SelectTrigger className="w-48">
+                                        <SelectValue placeholder="Select Category" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Electronics">Electronics</SelectItem>
-                                        <SelectItem value="Kits">Kits</SelectItem>
-                                        <SelectItem value="Components">Components</SelectItem>
-                                        <SelectItem value="Accessories">Accessories</SelectItem>
+                                        {categories.map(cat => (
+                                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -858,7 +870,7 @@ export default function InventoryPage() {
                                 {filteredInventoryItems.map((item, index) => (
                                     <tr key={index} className="border-b hover:bg-muted/50">
                                         <td className="py-3 px-4 text-foreground">{item.name}</td>
-                                        <td className="py-3 px-4 text-muted-foreground">{item.category}</td>
+                                        <td className="py-3 px-4 text-muted-foreground">{item.categoryId}</td>
                                         <td className="py-3 px-4">
                                             <div className="flex items-center">
                                                 <span

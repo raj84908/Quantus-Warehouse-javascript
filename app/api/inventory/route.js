@@ -85,7 +85,7 @@ app.post('/api/products', async (req, res) => {
             where: { sku: data.sku },
             update: {
                 name: data.name,
-                category: data.category,
+                category: { connect: { id: data.categoryId } }, // <-- use categoryId
                 location: data.location,
                 stock: data.stock,
                 minStock: data.minStock,
@@ -97,7 +97,7 @@ app.post('/api/products', async (req, res) => {
             create: {
                 sku: data.sku,
                 name: data.name,
-                category: data.category,
+                category: { connect: { id: data.categoryId } }, // <-- use categoryId
                 location: data.location,
                 stock: data.stock,
                 minStock: data.minStock,
@@ -107,6 +107,7 @@ app.post('/api/products', async (req, res) => {
                 image: imageUrl,
             },
         });
+
 
         res.json(product);
     } catch (error) {
@@ -358,6 +359,17 @@ app.post('/api/orders', async (req, res) => {
     }
 });
 
+app.get('/api/categories', async (req, res) => {
+    try {
+        const categories = await prisma.category.findMany({
+            orderBy: { name: 'asc' }
+        });
+        res.json(categories);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to fetch categories' });
+    }
+});
 
 
 
