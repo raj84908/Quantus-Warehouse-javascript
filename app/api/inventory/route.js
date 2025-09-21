@@ -28,7 +28,7 @@ app.get('/api/products', async (req, res) => {
         whereConditions.OR = [
             { name: { contains: search } },
             { sku: { contains: search } },
-            { category: { contains: search } },
+            { category: { name: { contains: search } } }, // Updated to search category.name
             { location: { contains: search } },
         ];
     }
@@ -41,12 +41,15 @@ app.get('/api/products', async (req, res) => {
             'accessories': 'Accessories'
         };
         const mappedCategory = categoryMap[category.toLowerCase()] || category;
-        whereConditions.category = { equals: mappedCategory };
+        whereConditions.category = { name: { equals: mappedCategory } }; // Updated to filter by category.name
     }
 
     try {
         const products = await prisma.product.findMany({
             where: Object.keys(whereConditions).length > 0 ? whereConditions : undefined,
+            include: {
+                category: true // Include category data in response
+            }
         });
         res.json(products);
     } catch (error) {

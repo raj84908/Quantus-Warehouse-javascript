@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   Search,
   Filter,
@@ -403,6 +404,28 @@ export default function OrdersPage() {
       document.head.appendChild(script)
     })
   }
+
+  // Function to delete an order
+  const deleteOrder = async (orderId, orderDbId) => {
+    if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/orders/${orderDbId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete order');
+
+      // Remove from local state
+      setOrders(prevOrders => prevOrders.filter(order => order.orderId !== orderId));
+      alert('Order deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      alert('Failed to delete order. Please try again.');
+    }
+  };
 
   const handleCreateInvoice = async () => {
     try {
@@ -894,6 +917,11 @@ export default function OrdersPage() {
                             />
                           </div>
                         </td>
+                        
+                        
+                        
+                        
+                        
                         <td className="py-3 px-4">
                           <div className="flex space-x-2">
                             <Button
@@ -904,9 +932,22 @@ export default function OrdersPage() {
                             >
                               <FileText className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="outline">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent>
+                                <DropdownMenuItem
+                                    onClick={() => deleteOrder(order.orderId, order.id)}
+                                    className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
+                                >
+                                  <X className="mr-2 h-4 w-4" />
+                                  Delete Order
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </td>
                       </tr>

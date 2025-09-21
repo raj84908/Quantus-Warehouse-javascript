@@ -29,7 +29,8 @@ model Product {
   id           Int      @id @default(autoincrement())
   sku          String   @unique
   name         String
-  category     String
+  categoryId   Int      // Foreign key field
+  category     Category @relation(fields: [categoryId], references: [id]) // Relation field
   stock        Int
   minStock     Int
   location     String
@@ -38,7 +39,6 @@ model Product {
   lastUpdated  DateTime @updatedAt
   image        String?
   stockAdjustments StockAdjustment[]
-
 }
 //Orders 
 
@@ -83,4 +83,11 @@ enum Status {
   IN_STOCK
   LOW_STOCK
   OUT_OF_STOCK
+}
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  products  Product[]
 }

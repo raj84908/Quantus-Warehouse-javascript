@@ -57,3 +57,31 @@ export async function GET(_, { params }) {
         );
     }
 }
+
+// DELETE /api/orders/:id
+export async function DELETE(request, { params }) {
+    try {
+        const { id } = params;
+        console.log('Deleting order with ID:', id);
+
+        await prisma.$transaction(async (tx) => {
+            // Delete related order items first
+            await tx.orderItem.deleteMany({
+                where: { orderId: parseInt(id) }
+            });
+
+            // Then delete the order
+            await tx.order.delete({
+                where: { id: parseInt(id) }
+            });
+        });
+
+        return NextResponse.json({ message: 'Order deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting order:', error);
+        return NextResponse.json(
+            { error: 'Failed to delete order: ' + error.message },
+            { status: 500 }
+        );
+    }
+}
