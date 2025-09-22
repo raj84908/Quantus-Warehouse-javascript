@@ -33,6 +33,7 @@ export default function OrdersPage() {
   const [productSearch, setProductSearch] = useState("")
   const [orderManager, setOrderManager] = useState(null);
   const [activeTab, setActiveTab] = useState("all") // all, processing, completed
+  const [logoData, setLogoData] = useState(null); // Add state for logo
   const [orders, setOrders] = useState([
     {
       orderId: "ORD-12847",
@@ -59,6 +60,31 @@ export default function OrdersPage() {
     billingAddress: ""
   })
 
+  // Load logo on component mount
+  useEffect(() => {
+    const loadLogo = async () => {
+      try {
+        // Method 1: Try to load from public folder as URL and convert to base64
+        const response = await fetch('/DesertStorm.png');
+        if (response.ok) {
+          const blob = await response.blob();
+          const reader = new FileReader();
+          reader.onload = () => {
+            setLogoData(reader.result);
+          };
+          reader.readAsDataURL(blob);
+        } else {
+          console.warn('Logo not found in public folder');
+        }
+      } catch (error) {
+        console.error('Failed to load logo:', error);
+        // Fallback: use a hardcoded base64 string if needed
+        // setLogoData("data:image/png;base64,YOUR_BASE64_STRING_HERE");
+      }
+    };
+
+    loadLogo();
+  }, []);
 
   const fetchOrders = async () => {
     try {
@@ -81,18 +107,13 @@ export default function OrdersPage() {
     loadOrders(); // call it here
   }, []);
 
-
   // Mock inventory data - updated with fragrance products similar to your invoice
   const {inventoryItems, statistics, loading, refresh } = useInventoryStats();
 
-  
-  
   useEffect(() => {
     const manager = new Orders(orders);
     setOrderManager(manager);
   }, [orders]); // Update when orders change
-  
-  
 
   // Don't render until orderManager is ready
   if (!orderManager) {
@@ -254,154 +275,156 @@ export default function OrdersPage() {
     }
   };
 
-  // Unified PDF Generation Function
-  const generateInvoicePDF = (orderData, items, isNewInvoice = false) => {
+  // Simplified PDF Generation Function - expects base64 logo data
+  const generateInvoicePDF = (orderData, items, isNewInvoice = false, logoBase64) => {
     return new Promise((resolve, reject) => {
-      // Load jsPDF from CDN
       const script = document.createElement('script')
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 
       script.onload = () => {
-        try {
-          const { jsPDF } = window.jspdf
-          const doc = new jsPDF()
+        const autoTableScript = document.createElement('script')
+        autoTableScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js'
 
-          // Generate invoice number
-          const invoiceNumber = isNewInvoice
-              ? `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
-              : orderData.orderId.replace('ORD', 'INV')
-          const currentDate = new Date().toLocaleDateString()
+        autoTableScript.onload = async () => {
+          try {
+            const { jsPDF } = window.jspdf
+            const doc = new jsPDF()
 
-          // Company Header
-          doc.setFontSize(16)
-          doc.setFont("helvetica", "bold")
-          doc.text("Desert Storm Fragrance", 20, 30)
+            // Generate invoice number
+            const invoiceNumber = isNewInvoice
+                ? `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
+                : orderData.orderId.replace('ORD', 'INV')
+            const currentDate = new Date().toLocaleDateString()
 
-          doc.setFontSize(10)
-          doc.setFont("helvetica", "normal")
-          doc.text("(901)319-9260", 20, 40)
-          doc.text("(229)854-4536", 20, 45)
-          doc.text("dsfragrance85@gmail.com", 20, 50)
-          doc.text("1201 Eisenhower Pkwy, Macon, GA 31206", 20, 55)
+            // === HEADER ===
+            if (logoBase64) {
+              try {
+                doc.addImage(logoBase64, "PNG", 15, 10, 40, 25) // logo
+              } catch (error) {
+                console.warn('Failed to add logo to PDF:', error);
+              }
+            }
 
-          // Invoice Title
-          doc.setFontSize(18)
-          doc.setFont("helvetica", "bold")
-          doc.text("INVOICE", 150, 30)
+            doc.setFontSize(16)
+            doc.setFont("helvetica", "bold")
+            doc.text("Desert Storm Fragrance", 70, 20)
 
-          // Invoice Details
-          doc.setFontSize(10)
-          doc.setFont("helvetica", "normal")
-          doc.text(`NUMBER: ${invoiceNumber}`, 150, 40)
-          doc.text(`DATE: ${currentDate}`, 150, 45)
+            doc.setFontSize(10)
+            doc.setFont("helvetica", "normal")
+            doc.text("(901)319-9260", 70, 28)
+            doc.text("(229)854-4536", 70, 33)
+            doc.text("dsfragrance85@gmail.com", 70, 38)
+            doc.text("1201 Eisenhower Pkwy, Macon, GA 31206", 70, 43)
 
-          // Bill To Section
-          doc.setFontSize(12)
-          doc.setFont("helvetica", "bold")
-          doc.text("BILL TO:", 20, 80)
+            // Invoice Title
+            doc.setFontSize(18)
+            doc.setFont("helvetica", "bold")
+            doc.text("INVOICE", 170, 20)
 
-          doc.setFontSize(10)
-          doc.setFont("helvetica", "normal")
-          const customerName = isNewInvoice ? customerInfo.companyName : orderData.customer
-          const customerEmail = isNewInvoice ? customerInfo.email : orderData.email
-          const customerPhone = isNewInvoice ? customerInfo.phone : orderData.phone
-          const customerAddress = isNewInvoice ? customerInfo.billingAddress : orderData.billingAddress
+            // Invoice Details
+            doc.setFontSize(10)
+            doc.setFont("helvetica", "normal")
+            doc.text(`NUMBER: ${invoiceNumber}`, 170, 30)
+            doc.text(`DATE: ${currentDate}`, 170, 35)
 
-          doc.text(customerName || "Customer Name", 20, 90)
-          if (customerPhone) doc.text(customerPhone, 20, 95)
-          if (customerEmail) doc.text(customerEmail, 20, 100)
-          if (customerAddress) {
-            const addressLines = customerAddress.split('\n')
-            addressLines.forEach((line, index) => {
-              doc.text(line, 20, 105 + (index * 5))
+            // === BILL TO ===
+            doc.setFontSize(12)
+            doc.setFont("helvetica", "bold")
+            doc.text("BILL TO:", 15, 60)
+
+            doc.setFontSize(10)
+            doc.setFont("helvetica", "normal")
+            const customerName = isNewInvoice ? customerInfo.companyName : orderData.customer
+            const customerEmail = isNewInvoice ? customerInfo.email : orderData.email
+            const customerPhone = isNewInvoice ? customerInfo.phone : orderData.phone
+            const customerAddress = isNewInvoice ? customerInfo.billingAddress : orderData.billingAddress
+
+            doc.text(customerName || "Customer Name", 15, 70)
+            if (customerPhone) doc.text(customerPhone, 15, 75)
+            if (customerEmail) doc.text(customerEmail, 15, 80)
+            if (customerAddress) {
+              const addressLines = customerAddress.split('\n')
+              addressLines.forEach((line, index) => {
+                doc.text(line, 15, 85 + (index * 5))
+              })
+            }
+
+            // === INVOICE ITEMS TABLE ===
+            const tableData = items.map(item => [
+              item.name,
+              item.quantity.toString(),
+              `$${item.price.toFixed(2)}`,
+              `$${(item.quantity * item.price).toFixed(2)}`
+            ])
+
+            doc.autoTable({
+              startY: 110,
+              head: [["Description", "Quantity", "Unit Price", "Amount"]],
+              body: tableData,
+              styles: { font: "helvetica", fontSize: 10, cellPadding: 3 },
+              headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold" },
+              tableLineColor: [200, 200, 200],
+              tableLineWidth: 0.2,
+              columnStyles: {
+                0: { cellWidth: 95 }, // Description
+                1: { cellWidth: 25, halign: "center" },
+                2: { cellWidth: 30, halign: "right" },
+                3: { cellWidth: 30, halign: "right" }
+              }
             })
+
+            // === TOTALS ===
+            const subtotal = calculateSubtotal(items)
+            const total = calculateTotal(items)
+
+            let finalY = doc.lastAutoTable.finalY + 10
+
+            doc.setFont("helvetica", "bold")
+            doc.text("SUBTOTAL:", 145, finalY)
+            doc.text(`$${subtotal.toFixed(2)}`, 180, finalY)
+
+            doc.text("TOTAL:", 145, finalY + 10)
+            doc.text(`$${total.toFixed(2)}`, 180, finalY + 10)
+
+            doc.text("PAID:", 145, finalY + 20)
+            doc.text("$0.00", 180, finalY + 20)
+
+            doc.setTextColor(255, 0, 0)
+            doc.text("BALANCE DUE:", 145, finalY + 35)
+            doc.text(`$${total.toFixed(2)}`, 180, finalY + 35)
+            doc.setTextColor(0, 0, 0)
+
+            // === PAYMENT INSTRUCTIONS ===
+            doc.setFont("helvetica", "bold")
+            doc.text("Payment Instructions", 15, finalY + 55)
+
+            doc.setFontSize(9)
+            doc.setFont("helvetica", "normal")
+            const paymentInstructions = [
+              "Note: We now accept card payments via Stripe.",
+              "A 4% processing fee will be added to credit card transactions.",
+              "To avoid the fee, you may pay via",
+              "- Check",
+              "- Zelle Payments to: DSFRAGRANCE85@GMAIL.COM or (478)407-9793",
+              "Note: If you prefer wire transfer, contact us for instructions."
+            ]
+            paymentInstructions.forEach((line, index) => {
+              doc.text(line, 15, finalY + 65 + (index * 5))
+            })
+
+            // Save
+            doc.save(`${invoiceNumber}.pdf`)
+            resolve(invoiceNumber)
+          } catch (error) {
+            reject(error)
           }
-
-          // Table Headers
-          const startY = 130
-          doc.setFontSize(10)
-          doc.setFont("helvetica", "bold")
-          doc.text("Description", 20, startY)
-          doc.text("Quantity", 120, startY)
-          doc.text("Unit price", 145, startY)
-          doc.text("Amount", 170, startY)
-
-          // Draw line under headers
-          doc.line(20, startY + 3, 190, startY + 3)
-
-          // Invoice Items
-          doc.setFont("helvetica", "normal")
-          let currentY = startY + 15
-
-          items.forEach((item) => {
-            // Handle long product names by wrapping text
-            const splitText = doc.splitTextToSize(item.name, 90)
-            doc.text(splitText, 20, currentY)
-            doc.text(item.quantity.toString(), 125, currentY)
-            doc.text(`$${item.price.toFixed(2)}`, 145, currentY)
-            doc.text(`$${(item.quantity * item.price).toFixed(2)}`, 170, currentY)
-
-            // Adjust Y position based on text height
-            const textHeight = splitText.length * 5
-            currentY += Math.max(textHeight, 10)
-          })
-
-          // Totals Section
-          const subtotal = calculateSubtotal(items)
-          const total = calculateTotal(items)
-
-          const totalsY = currentY + 20
-          doc.setFont("helvetica", "bold")
-          doc.text("SUBTOTAL:", 145, totalsY)
-          doc.text(`$${subtotal.toFixed(2)}`, 170, totalsY)
-
-          doc.text("TOTAL:", 145, totalsY + 10)
-          doc.text(`$${total.toFixed(2)}`, 170, totalsY + 10)
-
-          doc.text("PAID:", 145, totalsY + 20)
-          doc.text("$0.00", 170, totalsY + 20)
-
-          doc.text("BALANCE DUE:", 145, totalsY + 35)
-          doc.setTextColor(255, 0, 0) // Red color
-          doc.text(`$${total.toFixed(2)}`, 175, totalsY + 35, {align: "left"})
-          doc.setTextColor(0, 0, 0) // Reset to black
-
-          // Payment Instructions
-          doc.setFont("helvetica", "bold")
-          doc.text("Payment instructions", 20, totalsY + 20)
-
-          doc.setFontSize(9)
-          doc.setFont("helvetica", "normal")
-          const paymentInstructions = [
-            "-Note: We now accept card payments via Stripe.",
-            "A 4% processing fee will be added to credit card",
-            "transactions.",
-            "To avoid the fee, you may pay via",
-            "-Check",
-            "-Zelle Payments to:",
-            "DSFRAGRANCE85@GMAIL.COM",
-            "or",
-            "(478)407-9793",
-            "- Note: If you prefer to pay via wire transfer,",
-            "please contact us for wire transfer instructions."
-          ]
-
-          paymentInstructions.forEach((instruction, index) => {
-            doc.text(instruction, 20, totalsY + 35 + (index * 4))
-          })
-
-          // Save the PDF
-          doc.save(`${invoiceNumber}.pdf`)
-          resolve(invoiceNumber)
-        } catch (error) {
-          reject(error)
         }
+
+        autoTableScript.onerror = () => reject(new Error("Failed to load jsPDF AutoTable"))
+        document.head.appendChild(autoTableScript)
       }
 
-      script.onerror = () => {
-        reject(new Error('Failed to load jsPDF'))
-      }
-
+      script.onerror = () => reject(new Error("Failed to load jsPDF"))
       document.head.appendChild(script)
     })
   }
@@ -431,7 +454,7 @@ export default function OrdersPage() {
   const handleCreateInvoice = async () => {
     try {
       // Generate PDF and get invoice number
-      const invoiceNumber = await generateInvoicePDF(null, invoiceItems, true);
+      const invoiceNumber = await generateInvoicePDF(null, invoiceItems, true, logoData);
 
       // Create new order object
       const newOrder = {
@@ -494,7 +517,7 @@ export default function OrdersPage() {
   // Function to generate PDF from existing order
   const generateOrderInvoice = async (order) => {
     try {
-      await generateInvoicePDF(order, order.items, false)
+      await generateInvoicePDF(order, order.items, false, logoData)
       alert("Invoice PDF generated successfully!")
     } catch (error) {
       console.error("Error generating invoice:", error)
@@ -508,6 +531,9 @@ export default function OrdersPage() {
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orders</h1>
+              {/* Debug info - remove this in production */}
+              {logoData && <p className="text-sm text-green-600">Logo loaded successfully</p>}
+              {!logoData && <p className="text-sm text-orange-600">Logo not loaded</p>}
             </div>
             <div className="flex space-x-3">
               <Button onClick={() => setIsInvoiceModalOpen(true)}>
@@ -699,9 +725,6 @@ export default function OrdersPage() {
                               <table className="w-full">
                                 <thead>
                                 <tr className="border-b border-gray-200 dark:border-gray-600">
-                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Product</th>
-                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Quantity</th>
-                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Price</th>
                                   <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Total</th>
                                   <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-20">Action</th>
                                 </tr>
@@ -918,11 +941,6 @@ export default function OrdersPage() {
                             />
                           </div>
                         </td>
-                        
-                        
-                        
-                        
-                        
                         <td className="py-3 px-4">
                           <div className="flex space-x-2">
                             <Button
