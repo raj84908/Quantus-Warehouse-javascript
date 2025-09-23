@@ -71,9 +71,10 @@ export default function InventoryPage() {
 
         // Apply category filter
         if (selectedCategory !== "all") {
-            filtered = filtered.filter(item =>
-                item.category.name.toLowerCase() === selectedCategory.toLowerCase()
-            );
+            filtered = filtered.filter(item => {
+                const categoryName = item.category?.name || '';
+                return categoryName.toLowerCase() === selectedCategory.toLowerCase();
+            });
         }
 
         return filtered;
@@ -424,7 +425,7 @@ export default function InventoryPage() {
                                                                     </h4>
                                                                     <div className="flex items-center space-x-4">
                                                                         <Badge variant="outline" className="text-xs">
-                                                                            {product.category}
+                                                                            {product.category?.name}
                                                                         </Badge>
                                                                         <span className="text-sm font-medium text-blue-600">
                                                                             Current Stock: {product.stock}
@@ -870,7 +871,7 @@ export default function InventoryPage() {
                                 {filteredInventoryItems.map((item, index) => (
                                     <tr key={index} className="border-b hover:bg-muted/50">
                                         <td className="py-3 px-4 text-foreground">{item.name}</td>
-                                        <td className="py-3 px-4 text-muted-foreground">{item.categoryId}</td>
+                                        <td className="py-3 px-4 text-muted-foreground">{item.category?.name}</td>
                                         <td className="py-3 px-4">
                                             <div className="flex items-center">
                                                 <span

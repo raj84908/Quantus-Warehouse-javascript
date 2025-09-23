@@ -102,9 +102,15 @@ export default function Dashboard() {
   const fetchRecentOrders = async () => {
     setIsOrdersLoading(true);
     try {
-      const response = await fetch('http://localhost:4000/api/orders?limit=5'); // <-- optional limit
+      const response = await fetch('http://localhost:4000/api/orders?limit=5');
       if (!response.ok) throw new Error('Failed to fetch recent orders');
       const data = await response.json();
+
+      // Check if data exists and is an array with items
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        setRecentOrders([]);
+        return;
+      }
 
       const formattedOrders = data.map(order => ({
         orderId: order.orderId,
@@ -161,7 +167,7 @@ export default function Dashboard() {
     },
     {
       title: "Orders Today",
-      value: ordersToday,
+      value: ordersToday || 0,
       //change: stats.ordersChangePct ? `${stats.ordersChangePct}%` : "+0%",
       //changeText: "from yesterday",
       icon: ShoppingCart,
@@ -176,30 +182,7 @@ export default function Dashboard() {
       color: "text-purple-600"
     }
   ];
-
-  const topProducts = [
-    {
-      name: "Widget Pro A",
-      sku: "WPA-001",
-      units: "847 units",
-      //change: "+15%",
-      avatar: "W",
-    },
-    {
-      name: "Component X",
-      sku: "CX-205",
-      units: "623 units",
-      //change: "+8%",
-      avatar: "C",
-    },
-    {
-      name: "Premium Kit",
-      sku: "PK-150",
-      units: "445 units",
-      //change: "-3%",
-      avatar: "P",
-    },
-  ]
+  
 
   return (
       <div className="min-h-screen bg-background">
