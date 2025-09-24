@@ -91,3 +91,17 @@ model Category {
   updatedAt DateTime @updatedAt
   products  Product[]
 }
+
+model Report {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  category    String   // "Inventory", "Sales", "Operations", "HR"
+  format      String   // "PDF", "Excel", "CSV"
+  filePath    String   // Path to the generated file
+  size        Int      // File size in bytes
+  timeRange   String   // "7", "30", "90", "365"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
