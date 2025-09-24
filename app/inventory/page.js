@@ -169,11 +169,15 @@ export default function InventoryPage() {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    ...newItem,
+                    sku: newItem.sku,
+                    name: newItem.name,
+                    categoryId: Number(newItem.categoryId), // important!
+                    location: newItem.location,
                     stock: Number(newItem.stock),
                     minStock: Number(newItem.minStock),
                     value: Number(newItem.value),
-                    lastUpdated: new Date().toISOString(),
+                    status: newItem.status,
+                    image: newItem.image || null,
                 }),
             });
 
@@ -184,7 +188,7 @@ export default function InventoryPage() {
             setNewItem({
                 sku: "",
                 name: "",
-                category: "",
+                categoryId: "",
                 location: "",
                 stock: 0,
                 minStock: 0,
@@ -198,6 +202,7 @@ export default function InventoryPage() {
             alert("Failed to update item");
         }
     };
+
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -665,19 +670,24 @@ export default function InventoryPage() {
                             <div>
                                 <label className="block text-sm font-medium mb-1 text-muted-foreground">Category</label>
                                 <Select
-                                    value={newItem.categoryId || ""}
-                                    onValueChange={(id) => setNewItem(prev => ({ ...prev, categoryId: Number(id) }))}
+                                    value={newItem.categoryId ? newItem.categoryId.toString() : ""}
+                                    onValueChange={(id) =>
+                                        setNewItem((prev) => ({ ...prev, categoryId: Number(id) }))
+                                    }
                                 >
                                     <SelectTrigger className="w-48">
                                         <SelectValue placeholder="Select Category" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {categories.map(cat => (
-                                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                        {categories.map((cat) => (
+                                            <SelectItem key={cat.id} value={cat.id.toString()}>
+                                                {cat.name}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
+
 
                             {/* Location */}
                             <div>
@@ -840,14 +850,15 @@ export default function InventoryPage() {
                             </div>
                             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                                 <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="All Categories"/>
+                                    <SelectValue placeholder="All Categories" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All Categories</SelectItem>
-                                    <SelectItem value="electronics">Electronics</SelectItem>
-                                    <SelectItem value="components">Components</SelectItem>
-                                    <SelectItem value="kits">Kits</SelectItem>
-                                    <SelectItem value="accessories">Accessories</SelectItem>
+                                    {categories.map((cat) => (
+                                        <SelectItem key={cat.id} value={cat.id.toString()}>
+                                            {cat.name}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -905,7 +916,7 @@ export default function InventoryPage() {
                                                             setNewItem({
                                                                 sku: item.sku,
                                                                 name: item.name,
-                                                                category: item.category,
+                                                                categoryId: item.category?.id,
                                                                 location: item.location,
                                                                 stock: item.stock,
                                                                 minStock: item.minStock,

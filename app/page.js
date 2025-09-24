@@ -59,10 +59,12 @@ export default function Dashboard() {
         const timeAgo = getTimeAgo(new Date(adjustment.createdAt));
         const isAddition = adjustment.quantity > 0;
 
+        const productName = adjustment.product?.name || "Unknown Product";
+
         return {
           type: isAddition ? "stock-add" : "stock-remove",
           title: isAddition ? "Stock added" : "Stock removed",
-          description: `${adjustment.product.name} - ${Math.abs(adjustment.quantity)} units ${isAddition ? 'added' : 'removed'}`,
+          description: `${productName} - ${Math.abs(adjustment.quantity)} units ${isAddition ? 'added' : 'removed'}`,
           reason: adjustment.reason,
           time: timeAgo,
           color: isAddition
@@ -72,32 +74,17 @@ export default function Dashboard() {
         };
       });
 
+
       setRecentActivity(formattedActivity);
     } catch (error) {
       console.error('Error fetching recent activity:', error);
-      // Fallback to static data if fetching fails
-      setRecentActivity([
-        {
-          type: "stock-add",
-          title: "Stock replenished",
-          description: "Widget A - 500 units added",
-          time: "2m ago",
-          color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-          icon: ArrowUp,
-        },
-        {
-          type: "order",
-          title: "Order fulfilled",
-          description: "Order #12847 - 25 items shipped",
-          time: "15m ago",
-          color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-          icon: "●",
-        },
-      ]);
+      // Just clear if there’s an error
+      setRecentActivity([]);
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const fetchRecentOrders = async () => {
     setIsOrdersLoading(true);
@@ -197,7 +184,7 @@ export default function Dashboard() {
               const Icon = stat.icon;
               return (
                   <Card key={i}>
-                    <CardHeader className="flex justify-between pb-2">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
                       <Icon className={`h-4 w-4 ${stat.color}`} />
                     </CardHeader>

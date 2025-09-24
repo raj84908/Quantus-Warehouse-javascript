@@ -118,36 +118,59 @@ app.post('/api/products', async (req, res) => {
 
 // PUT update product
 // Adjust stock by delta (positive = add, negative = remove)
-app.put('/api/products/:id/adjust', async (req, res) => {
+app.put('/api/products/:id', async (req, res) => {
     const { id } = req.params;
-    const { delta } = req.body;
+    const { sku, name, categoryId, location, stock, minStock, value, status, image } = req.body;
 
     try {
-        const product = await prisma.product.update({
+        const updated = await prisma.product.update({
             where: { id: Number(id) },
             data: {
-                stock: { increment: delta },
+                sku,
+                name,
+                categoryId: Number(categoryId), // ensure this is a number
+                location,
+                stock: Number(stock),
+                minStock: Number(minStock),
+                value: Number(value),
+                status: ['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'].includes(status) ? status : 'IN_STOCK',
+                image: image || null,
             },
         });
-        res.json(product);
+
+        res.json(updated);
     } catch (error) {
-        console.error('Error adjusting stock:', error);
-        res.status(500).json({ error: 'Failed to adjust stock' });
+        console.error("Error updating product:", error);
+        res.status(500).json({ error: "Failed to update product" });
     }
 });
 
 
+
+
+// DELETE a product
 // DELETE a product
 app.delete('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        await prisma.product.delete({ where: { id: Number(id) } });
+        // First, nullify productId in related StockAdjustments (if any)
+        await prisma.stockAdjustment.updateMany({
+            where: { productId: Number(id) },
+            data: { productId: null }
+        });
+
+        // Then delete the product
+        await prisma.product.delete({
+            where: { id: Number(id) }
+        });
+
         res.json({ message: 'Deleted successfully' });
     } catch (error) {
         console.error('Error deleting product:', error);
         res.status(500).json({ error: 'Failed to delete product' });
     }
 });
+
 
 
 

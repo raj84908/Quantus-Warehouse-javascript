@@ -532,7 +532,7 @@ export default function OrdersPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orders</h1>
               {/* Debug info - remove this in production */}
-              {logoData && <p className="text-sm text-green-600">Logo loaded successfully</p>}
+              {/*logoData && <p className="text-sm text-green-600">Logo loaded successfully</p>*/}
               {!logoData && <p className="text-sm text-orange-600">Logo not loaded</p>}
             </div>
             <div className="flex space-x-3">

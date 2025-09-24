@@ -12,16 +12,16 @@ datasource db {
 
 //Stock Adjustement
 model StockAdjustment {
-  id           Int      @id @default(autoincrement())
-  productId    Int
-  product      Product  @relation(fields: [productId], references: [id])
-  quantity     Int      // The adjustment amount (positive for additions, negative for deductions)
-  previousStock Int     // Stock before adjustment
-  newStock     Int      // Stock after adjustment
-  reason       String   // Reason for adjustment (e.g., "damaged", "received", "returned")
-  notes        String?  // Optional additional notes
-  adjustedBy   String?  // Who made the adjustment
-  createdAt    DateTime @default(now())
+  id            Int       @id @default(autoincrement())
+  productId     Int?
+  product       Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  quantity      Int
+  previousStock Int
+  newStock      Int
+  reason        String
+  notes         String?
+  adjustedBy    String?
+  createdAt     DateTime  @default(now())
 }
 
 //Storing Inventory Items

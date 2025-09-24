@@ -95,12 +95,13 @@ export default function StockAdjustmentsPage() {
 
         const searchTerm = filter.search.toLowerCase();
         return (
-            adjustment.product.name.toLowerCase().includes(searchTerm) ||
-            adjustment.product.sku.toLowerCase().includes(searchTerm) ||
+            adjustment.product?.name?.toLowerCase().includes(searchTerm) ||
+            adjustment.product?.sku?.toLowerCase().includes(searchTerm) ||
             adjustment.reason.toLowerCase().includes(searchTerm) ||
             (adjustment.notes && adjustment.notes.toLowerCase().includes(searchTerm))
         );
     });
+
 
     // Format date for display
     const formatDate = (dateString) => {
@@ -269,8 +270,8 @@ export default function StockAdjustmentsPage() {
                                                 </td>
                                                 <td className="py-3 px-4 text-foreground">
                                                     <div>
-                                                        <div className="font-medium">{adjustment.product.name}</div>
-                                                        <div className="text-sm text-muted-foreground">{adjustment.product.sku}</div>
+                                                        <div className="font-medium">{adjustment.product?.name}</div>
+                                                        <div className="text-sm text-muted-foreground">{adjustment.product?.sku}</div>
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
