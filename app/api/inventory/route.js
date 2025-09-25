@@ -340,6 +340,22 @@ app.get('/api/stock-adjustments', async (req, res) => {
 });
 
 
+app.delete('/api/stock-adjustments/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const deleted = await prisma.stockAdjustment.delete({
+            where: { id: Number(id) }
+        });
+
+        res.json({ message: 'Stock adjustment deleted', deleted });
+    } catch (error) {
+        console.error('Error deleting stock adjustment:', error);
+        res.status(500).json({ error: 'Failed to delete stock adjustment' });
+    }
+});
+
+
 // GET all orders
 app.get('/api/orders', async (req, res) => {
     try {

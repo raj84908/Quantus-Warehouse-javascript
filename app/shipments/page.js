@@ -12,12 +12,10 @@ const TrackingMap = dynamic(
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Search, Filter, Download, Plus, Truck, MapPin, X } from "lucide-react"
+import { Search, Filter, Download, Plus } from "lucide-react"
 
 // Leaflet imports
 import 'leaflet/dist/leaflet.css'
-
-// Fix for default markers in Leaflet
 
 export default function ShipmentsPage() {
   const [shipments, setShipments] = useState([
@@ -71,17 +69,6 @@ export default function ShipmentsPage() {
   const [selectedShipment, setSelectedShipment] = useState(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [newShipment, setNewShipment] = useState({
-    customer: "",
-    destination: "",
-    carrier: "",
-    trackingNumber: "",
-    status: "Preparing",
-    items: "",
-    weight: "",
-    estDelivery: "",
-  })
 
   // Fix for Leaflet z-index issue with dialogs
   useEffect(() => {
@@ -93,9 +80,7 @@ export default function ShipmentsPage() {
     `;
     document.head.appendChild(style);
 
-    return () => {
-      document.head.removeChild(style);
-    };
+    return () => document.head.removeChild(style)
   }, []);
 
   const getStatusColor = (status) => {
@@ -113,60 +98,6 @@ export default function ShipmentsPage() {
     }
   }
 
-  const handleAddShipment = () => {
-    // Basic validation
-    if (!newShipment.customer || !newShipment.destination || !newShipment.carrier) {
-      alert("Please fill in required fields: Customer, Destination, and Carrier")
-      return
-    }
-
-    const newId = shipments.length > 0 ? Math.max(...shipments.map(s => s.id)) + 1 : 1
-
-    // Generate coordinates based on destination (simplified for demo)
-    const getCoordinates = (destination) => {
-      // In a real app, you would use a geocoding service here
-      const cityCoords = {
-        "New York, NY": { lat: 40.7128, lng: -74.0060 },
-        "San Francisco, CA": { lat: 37.7749, lng: -122.4194 },
-        "Chicago, IL": { lat: 41.8781, lng: -87.6298 },
-        "Austin, TX": { lat: 30.2672, lng: -97.7431 },
-        "Miami, FL": { lat: 25.7617, lng: -80.1918 },
-        "Seattle, WA": { lat: 47.6062, lng: -122.3321 },
-        "Boston, MA": { lat: 42.3601, lng: -71.0589 },
-        "Los Angeles, CA": { lat: 34.0522, lng: -118.2437 },
-      }
-
-      return cityCoords[destination] || {
-        lat: 39.8283 + (Math.random() - 0.5) * 10,
-        lng: -98.5795 + (Math.random() - 0.5) * 10
-      }
-    }
-
-    const coords = getCoordinates(newShipment.destination)
-
-    const newShipmentWithId = {
-      ...newShipment,
-      id: newId,
-      shipmentId: `SHP-${String(newId).padStart(6, '0')}`,
-      orderId: `ORD-${String(10000 + newId).padStart(5, '0')}`,
-      lat: coords.lat,
-      lng: coords.lng,
-    }
-
-    setShipments([...shipments, newShipmentWithId])
-    setNewShipment({
-      customer: "",
-      destination: "",
-      carrier: "",
-      trackingNumber: "",
-      status: "Preparing",
-      items: "",
-      weight: "",
-      estDelivery: "",
-    })
-    setIsAddDialogOpen(false)
-  }
-
   const filteredShipments = shipments.filter(shipment => {
     const matchesSearch =
         shipment.shipmentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -180,7 +111,8 @@ export default function ShipmentsPage() {
   })
 
   return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 relative">
+        {/* Main Content */}
         <div className="container mx-auto px-6 py-8">
           <div className="flex justify-between items-center mb-8">
             <div>
@@ -188,145 +120,14 @@ export default function ShipmentsPage() {
               <p className="text-gray-600 dark:text-gray-400 mt-1">Monitor and track all outbound shipments</p>
             </div>
             <div className="flex space-x-3">
-              <Button variant="outline">
+              <Button variant="outline" disabled>
                 <Download className="mr-2 h-4 w-4" />
                 Export
               </Button>
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Shipment
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[600px] z-50">
-                  <DialogHeader>
-                    <DialogTitle>Add New Shipment</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="customer" className="text-right">
-                        Customer *
-                      </Label>
-                      <Input
-                          id="customer"
-                          value={newShipment.customer}
-                          onChange={(e) => setNewShipment({...newShipment, customer: e.target.value})}
-                          className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="destination" className="text-right">
-                        Destination *
-                      </Label>
-                      <Select
-                          value={newShipment.destination}
-                          onValueChange={(value) => setNewShipment({...newShipment, destination: value})}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select destination" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="New York, NY">New York, NY</SelectItem>
-                          <SelectItem value="San Francisco, CA">San Francisco, CA</SelectItem>
-                          <SelectItem value="Chicago, IL">Chicago, IL</SelectItem>
-                          <SelectItem value="Austin, TX">Austin, TX</SelectItem>
-                          <SelectItem value="Miami, FL">Miami, FL</SelectItem>
-                          <SelectItem value="Seattle, WA">Seattle, WA</SelectItem>
-                          <SelectItem value="Boston, MA">Boston, MA</SelectItem>
-                          <SelectItem value="Los Angeles, CA">Los Angeles, CA</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="carrier" className="text-right">
-                        Carrier *
-                      </Label>
-                      <Select
-                          value={newShipment.carrier}
-                          onValueChange={(value) => setNewShipment({...newShipment, carrier: value})}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select carrier" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="FedEx">FedEx</SelectItem>
-                          <SelectItem value="UPS">UPS</SelectItem>
-                          <SelectItem value="DHL">DHL</SelectItem>
-                          <SelectItem value="USPS">USPS</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="trackingNumber" className="text-right">
-                        Tracking #
-                      </Label>
-                      <Input
-                          id="trackingNumber"
-                          value={newShipment.trackingNumber}
-                          onChange={(e) => setNewShipment({...newShipment, trackingNumber: e.target.value})}
-                          className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="status" className="text-right">
-                        Status
-                      </Label>
-                      <Select
-                          value={newShipment.status}
-                          onValueChange={(value) => setNewShipment({...newShipment, status: value})}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Preparing">Preparing</SelectItem>
-                          <SelectItem value="In Transit">In Transit</SelectItem>
-                          <SelectItem value="Out for Delivery">Out for Delivery</SelectItem>
-                          <SelectItem value="Delivered">Delivered</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="items" className="text-right">
-                        Items
-                      </Label>
-                      <Input
-                          id="items"
-                          value={newShipment.items}
-                          onChange={(e) => setNewShipment({...newShipment, items: e.target.value})}
-                          className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="weight" className="text-right">
-                        Weight
-                      </Label>
-                      <Input
-                          id="weight"
-                          value={newShipment.weight}
-                          onChange={(e) => setNewShipment({...newShipment, weight: e.target.value})}
-                          className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="estDelivery" className="text-right">
-                        Est. Delivery
-                      </Label>
-                      <Input
-                          id="estDelivery"
-                          type="date"
-                          value={newShipment.estDelivery}
-                          onChange={(e) => setNewShipment({...newShipment, estDelivery: e.target.value})}
-                          className="col-span-3"
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button type="submit" onClick={handleAddShipment}>Add Shipment</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <Button disabled>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Shipment
+              </Button>
             </div>
           </div>
 
@@ -340,44 +141,8 @@ export default function ShipmentsPage() {
               <TrackingMap
                   shipments={shipments}
                   selectedShipment={selectedShipment}
-                  onSelectShipment={setSelectedShipment}
+                  onSelectShipment={() => {}}
               />
-            </CardContent>
-          </Card>
-
-          {/* Quick Track */}
-          <Card className="mb-8 dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="dark:text-gray-100">Quick Track</CardTitle>
-              <CardDescription className="dark:text-gray-400">Enter tracking number...</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-4">
-                <Input placeholder="Enter tracking number" className="flex-1" />
-                <Button>Track</Button>
-              </div>
-
-              <div className="mt-6">
-                <h3 className="text-sm font-medium mb-2 dark:text-gray-300">Status Legend</h3>
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                    <span className="text-sm dark:text-gray-400">Delivered</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-                    <span className="text-sm dark:text-gray-400">In Transit</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
-                    <span className="text-sm dark:text-gray-400">Pending</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-                    <span className="text-sm dark:text-gray-400">Exception</span>
-                  </div>
-                </div>
-              </div>
             </CardContent>
           </Card>
 
@@ -391,33 +156,10 @@ export default function ShipmentsPage() {
                     Track and manage all warehouse shipments
                   </CardDescription>
                 </div>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled>
                   <Filter className="mr-2 h-4 w-4" />
                   More Filters
                 </Button>
-              </div>
-              <div className="flex items-center space-x-4 mt-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                      placeholder="Search shipments..."
-                      className="pl-10 dark:bg-gray-700 dark:text-gray-50"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-48 dark:bg-gray-700 dark:text-gray-50">
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent className="dark:bg-gray-700 dark:text-gray-50">
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="Preparing">Preparing</SelectItem>
-                    <SelectItem value="In Transit">In Transit</SelectItem>
-                    <SelectItem value="Out for Delivery">Out for Delivery</SelectItem>
-                    <SelectItem value="Delivered">Delivered</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </CardHeader>
             <CardContent>
@@ -430,9 +172,7 @@ export default function ShipmentsPage() {
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Customer</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Destination</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Carrier</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">
-                      Tracking Number
-                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Tracking Number</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Status</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Items</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-gray-100">Weight</th>
@@ -444,8 +184,7 @@ export default function ShipmentsPage() {
                   {filteredShipments.map((shipment) => (
                       <tr
                           key={shipment.id}
-                          className={`border-b hover:bg-gray-50 dark:hover:bg-gray-700 ${selectedShipment?.id === shipment.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                          onClick={() => setSelectedShipment(shipment)}
+                          className="border-b bg-gray-100/50 dark:bg-gray-700/50 cursor-not-allowed"
                       >
                         <td className="py-3 px-4 font-medium text-gray-900 dark:text-gray-100">{shipment.shipmentId}</td>
                         <td className="py-3 px-4 font-medium text-blue-600 dark:text-blue-400">{shipment.orderId}</td>
@@ -462,23 +201,21 @@ export default function ShipmentsPage() {
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{shipment.weight}</td>
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{shipment.estDelivery}</td>
                         <td className="py-3 px-4">
-                          <Button size="sm" variant="outline">
-                            •••
-                          </Button>
+                          <Button size="sm" variant="outline" disabled>•••</Button>
                         </td>
                       </tr>
                   ))}
                   </tbody>
                 </table>
-
-                {filteredShipments.length === 0 && (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                      No shipments found. <Button variant="link" onClick={() => setIsAddDialogOpen(true)}>Add a shipment</Button>
-                    </div>
-                )}
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 flex flex-col items-center justify-center z-50">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">Page Under Development</h1>
+          <p className="text-gray-700 dark:text-gray-300 text-center px-4">This feature is not interactive yet. Stay tuned!</p>
         </div>
       </div>
   )

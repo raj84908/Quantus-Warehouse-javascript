@@ -55,6 +55,8 @@ export default function StockAdjustmentsPage() {
             setLoading(false);
         }
     };
+    
+    
 
     // Initial load of adjustments
     useEffect(() => {
@@ -101,6 +103,28 @@ export default function StockAdjustmentsPage() {
             (adjustment.notes && adjustment.notes.toLowerCase().includes(searchTerm))
         );
     });
+
+    const handleDeleteAdjustment = async (id) => {
+        if (!confirm("Are you sure you want to delete this adjustment?")) return;
+
+        try {
+            setLoading(true);
+            const response = await fetch(`http://localhost:4000/api/stock-adjustments/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) throw new Error('Failed to delete adjustment');
+
+            // Remove the deleted adjustment from state
+            setAdjustments(prev => prev.filter(adj => adj.id !== id));
+        } catch (error) {
+            console.error(error);
+            alert('Error deleting adjustment');
+        } finally {
+            setLoading(false);
+        }
+    };
+
 
 
     // Format date for display
@@ -246,12 +270,13 @@ export default function StockAdjustmentsPage() {
                                         <th className="text-left py-3 px-4 font-medium text-foreground">New Stock</th>
                                         <th className="text-left py-3 px-4 font-medium text-foreground">Reason</th>
                                         <th className="text-left py-3 px-4 font-medium text-foreground">Adjusted By</th>
+                                        <th className="text-left py-3 px-4 font-medium text-foreground">Actions</th>
                                     </tr>
                                     </thead>
                                     <tbody>
                                     {filteredAdjustments.length === 0 ? (
                                         <tr>
-                                            <td colSpan="7" className="text-center py-8 text-muted-foreground">
+                                            <td colSpan="8" className="text-center py-8 text-muted-foreground">
                                                 {initialLoad ? "Loading..." : "No stock adjustments found"}
                                                 {!initialLoad && (
                                                     <div className="mt-2">
@@ -290,12 +315,23 @@ export default function StockAdjustmentsPage() {
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4 text-muted-foreground">{adjustment.adjustedBy || 'System'}</td>
+                                                <td className="py-3 px-4">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        onClick={() => handleDeleteAdjustment(adjustment.id)}
+                                                        disabled={loading}
+                                                    >
+                                                        Delete
+                                                    </Button>
+                                                </td>
                                             </tr>
                                         ))
                                     )}
                                     </tbody>
                                 </table>
                             </div>
+
                         )}
                     </CardContent>
                 </Card>
