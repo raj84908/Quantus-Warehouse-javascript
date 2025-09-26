@@ -40,14 +40,17 @@ export default function AnalyticsPage() {
   const [salesTrend, setSalesTrend] = useState([])
   const [loading, setLoading] = useState(true)
   const [isChartExpanded, setIsChartExpanded] = useState(false)
-
-
+  
+  
+  
   useEffect(() => {
     fetchAnalyticsData()
   }, [timeRange])
   const fetchAnalyticsData = async () => {
     setLoading(true)
     try {
+      console.log('Fetching data with timeRange:', timeRange)
+
       const [analyticsRes, topProductsRes, performanceRes, insightsRes, salesTrendRes] = await Promise.all([
         fetch(`/api/analytics?timeRange=${timeRange}`),
         fetch(`/api/analytics/top-products?timeRange=${timeRange}`),
@@ -55,6 +58,14 @@ export default function AnalyticsPage() {
         fetch(`/api/analytics/insights`),
         fetch(`/api/analytics/sales-trend?timeRange=${timeRange}`),
       ])
+
+      console.log('Component rendering with salesTrend:', {
+        length: salesTrend.length,
+        firstItem: salesTrend[0],
+        lastItem: salesTrend[salesTrend.length - 1],
+        allDates: salesTrend.map(item => item.date),
+        allRevenues: salesTrend.map(item => item.revenue)
+      })
 
       const [analyticsData, topProductsData, performanceData, insightsData, salesTrendData] = await Promise.all([
         analyticsRes.json(),
@@ -64,16 +75,26 @@ export default function AnalyticsPage() {
         salesTrendRes.json(),
       ])
 
-      console.log("Total Revenue sum:", salesTrend.reduce((sum, d) => sum + d.revenue, 0))
-      console.log("Peak Revenue max:", Math.max(...salesTrend.map(d => d.revenue)))
-      console.log("analytics revenue:", analytics?.revenue?.value)
+      console.log('Received salesTrendData:', salesTrendData)
+      // Add this right after the "Received salesTrendData" log
+      console.log('First 5 items:', salesTrendData.slice(0, 5))
+      console.log('Last 5 items:', salesTrendData.slice(-5))
 
+      // Process the salesTrendData before setting state
+      const processedSalesTrend = Array.isArray(salesTrendData) ? salesTrendData : []
+
+      // Now do your calculations with the actual data
+      console.log("Total Revenue sum:", processedSalesTrend.reduce((sum, d) => sum + d.revenue, 0))
+      console.log("Peak Revenue max:", Math.max(...processedSalesTrend.map(d => d.revenue)))
+      console.log("analytics revenue:", analyticsData?.revenue?.value)
+
+      // Set all state at once
       setAnalytics(analyticsData)
       setTopProducts(Array.isArray(topProductsData) ? topProductsData : [])
       setPerformanceMetrics(Array.isArray(performanceData) ? performanceData : [])
       setInsights(Array.isArray(insightsData) ? insightsData : [])
-      setSalesTrend(Array.isArray(salesTrendData) ? salesTrendData : [])
-      
+      setSalesTrend(processedSalesTrend)
+
     } catch (error) {
       console.error("Failed to fetch analytics data:", error)
     } finally {
@@ -134,7 +155,7 @@ export default function AnalyticsPage() {
       return (
           <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              {new Date(label).toLocaleDateString("en-US", {
+              {new Date(label + 'T12:00:00').toLocaleDateString("en-US", {
                 weekday: "long",
                 year: "numeric",
                 month: "long",
@@ -247,6 +268,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Enhanced Sales Trend Chart */}
+          {/* Enhanced Sales Trend Chart - Back to original styling */}
           <div
               className={`mb-8 ${isChartExpanded ? "fixed inset-4 z-50 bg-white dark:bg-gray-900 rounded-lg shadow-2xl" : ""}`}
           >
@@ -292,7 +314,7 @@ export default function AnalyticsPage() {
                           axisLine={{ stroke: "#d1d5db", strokeWidth: 1 }}
                           tickLine={{ stroke: "#d1d5db" }}
                           tickFormatter={(value) => {
-                            const date = new Date(value)
+                            const date = new Date(value + 'T12:00:00')
                             return timeRange === "7"
                                 ? date.toLocaleDateString("en-US", { weekday: "short" })
                                 : date.toLocaleDateString("en-US", { month: "short", day: "numeric" })

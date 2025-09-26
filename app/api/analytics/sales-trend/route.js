@@ -10,24 +10,23 @@ export async function GET(request) {
 
     try {
         const salesData = []
-
         const now = new Date()
 
-        // Compute today at UTC midnight
-        const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+        // Use local dates instead of UTC to avoid timezone shifts
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
         for (let i = days - 1; i >= 0; i--) {
-            // Compute UTC start and end for the day i days ago
-            const startUTC = new Date(Date.UTC(todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate() - i))
-            const endUTC = new Date(Date.UTC(todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate() - i + 1))
+            // Create local start and end dates
+            const startLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i)
+            const endLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i + 1)
 
-            // Query orderItems where order createdAt >= startUTC and < endUTC (UTC range)
+            // Query orderItems where order createdAt >= startLocal and < endLocal
             const orderItems = await prisma.orderItem.findMany({
                 where: {
                     order: {
                         createdAt: {
-                            gte: startUTC,
-                            lt: endUTC,
+                            gte: startLocal,
+                            lt: endLocal,
                         },
                     },
                 },
@@ -36,18 +35,32 @@ export async function GET(request) {
                     quantity: true,
                 },
             })
+            
+
+            // Format date consistently for local display
+            const displayDate = startLocal.getFullYear() + '-' +
+                String(startLocal.getMonth() + 1).padStart(2, '0') + '-' +
+                String(startLocal.getDate()).padStart(2, '0')
 
             const dayRevenue = orderItems.reduce((total, item) => total + item.price * item.quantity, 0)
 
-            // Format date as local ISO date string for display - alternatively use startUTC.toISOString().split('T')[0]
-            const displayDate = startUTC.toISOString().split('T')[0]
-
+// Debug statements
+            console.log(`Day ${i} (${displayDate}): Revenue=${dayRevenue}, OrderItems=${orderItems.length}`)
+            if (dayRevenue > 0) {
+                console.log('Order items for this day:', orderItems.map(item => ({
+                    price: item.price,
+                    quantity: item.quantity,
+                    total: item.price * item.quantity
+                })))
+            }
+            
             salesData.push({
                 date: displayDate,
                 revenue: dayRevenue,
             })
         }
 
+        
         return NextResponse.json(salesData)
     } catch (error) {
         console.error('Error fetching sales trend:', error)
@@ -57,3 +70,4 @@ export async function GET(request) {
         )
     }
 }
+
