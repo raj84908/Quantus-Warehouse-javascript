@@ -39,6 +39,7 @@ model Product {
   lastUpdated  DateTime @updatedAt
   image        String?
   stockAdjustments StockAdjustment[]
+  orderItems    OrderItem[]  // <-- Add this line for relation back-reference
 }
 //Orders 
 
@@ -68,8 +69,10 @@ model OrderItem {
   quantity  Int
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId   Int
-  productId Int?     // Optional reference to the actual product
+  product   Product? @relation(fields: [productId], references: [id])  // Correct relation
+  productId Int?     // Optional foreign key to Product
 }
+
 
 
 
@@ -105,3 +108,39 @@ model Report {
   updatedAt   DateTime @updatedAt
 }
 
+// Add this Profile model to your existing schema.prisma file
+
+model Profile {
+  id          Int      @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  email       String   @unique
+  phone       String?
+  location    String?
+  bio         String?
+  department  String
+  position    String
+  employeeId  String   @unique
+  joinDate    DateTime
+  avatar      String?  // Base64 encoded image or URL
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model People {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  phone       String?
+  department  String?
+  position    String?
+  status      String   @default("Active") // "Active", "On Leave", "Inactive"
+  hireDate    DateTime?
+  performance String?  // "Excellent", "Good", "Average", "Poor"
+  type        String   // "staff" or "customer"
+  company     String?  // For customers
+  address     String?  // For customers
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

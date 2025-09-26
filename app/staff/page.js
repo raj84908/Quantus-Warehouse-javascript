@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Filter, Download, Upload, Plus, Users, UserX, UserCheck, Star, Mail, Phone, Edit, Trash2, Eye, Building2, UserCircle } from "lucide-react"
 
+const API_BASE = 'http://localhost:4000'
+
 export default function StaffPage() {
   // State management
   const [activeTab, setActiveTab] = useState("staff")
@@ -32,13 +34,12 @@ export default function StaffPage() {
     status: "Active",
     hireDate: "",
     performance: "Good",
-    type: "staff", // 'staff' or 'customer'
-    company: "", // for customers
-    address: "", // for customers
+    type: "staff",
+    company: "",
+    address: "",
     notes: ""
   })
 
-  // Load data on component mount
   useEffect(() => {
     loadPeople()
   }, [])
@@ -46,10 +47,12 @@ export default function StaffPage() {
   const loadPeople = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/people')
+      const response = await fetch(`${API_BASE}/api/people`)
       if (response.ok) {
         const data = await response.json()
         setPeople(data)
+      } else {
+        console.error('Failed to load people:', response.status)
       }
     } catch (error) {
       console.error('Error loading people:', error)
@@ -58,7 +61,6 @@ export default function StaffPage() {
     }
   }
 
-  // Filter people based on active tab and search criteria
   const filteredPeople = people.filter(person => {
     const matchesTab = activeTab === "all" || person.type === activeTab
     const matchesSearch = person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -69,12 +71,11 @@ export default function StaffPage() {
     return matchesTab && matchesSearch && matchesDepartment && matchesStatus
   })
 
-  // Calculate stats
   const stats = {
     staff: {
       total: people.filter(p => p.type === 'staff').length,
       onLeave: people.filter(p => p.type === 'staff' && p.status === 'On Leave').length,
-      newHires: people.filter(p => p.type === 'staff' && new Date(p.hireDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length,
+      newHires: people.filter(p => p.type === 'staff' && p.hireDate && new Date(p.hireDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length,
       avgPerformance: calculateAveragePerformance()
     },
     customers: {
@@ -99,7 +100,7 @@ export default function StaffPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      const url = editingPerson ? `/api/people/${editingPerson.id}` : '/api/people'
+      const url = editingPerson ? `${API_BASE}/api/people/${editingPerson.id}` : `${API_BASE}/api/people`
       const method = editingPerson ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
@@ -115,30 +116,40 @@ export default function StaffPage() {
         resetForm()
         setDialogOpen(false)
       } else {
-        console.error('Error saving person')
+        const errorData = await response.json()
+        alert(errorData.error || 'Error saving person')
       }
     } catch (error) {
       console.error('Error:', error)
+      alert('Error saving person')
     }
   }
 
   const handleEdit = (person) => {
     setEditingPerson(person)
-    setFormData({ ...person })
+    const formattedHireDate = person.hireDate ? person.hireDate.split('T')[0] : ''
+    setFormData({
+      ...person,
+      hireDate: formattedHireDate
+    })
     setDialogOpen(true)
   }
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this person?')) {
       try {
-        const response = await fetch(`/api/people/${id}`, {
+        const response = await fetch(`${API_BASE}/api/people/${id}`, {
           method: 'DELETE',
         })
         if (response.ok) {
           await loadPeople()
+        } else {
+          const errorData = await response.json()
+          alert(errorData.error || 'Error deleting person')
         }
       } catch (error) {
         console.error('Error deleting person:', error)
+        alert('Error deleting person')
       }
     }
   }
@@ -164,7 +175,7 @@ export default function StaffPage() {
   const exportData = () => {
     const dataToExport = filteredPeople.map(person => ({
       ...person,
-      id: undefined // Remove id for clean export
+      id: undefined
     }))
 
     const dataStr = JSON.stringify(dataToExport, null, 2)
@@ -423,7 +434,6 @@ export default function StaffPage() {
             </div>
           </div>
 
-          {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="all" className="flex items-center">
@@ -441,7 +451,6 @@ export default function StaffPage() {
             </TabsList>
           </Tabs>
 
-          {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {activeTab !== 'customer' && (
                 <>

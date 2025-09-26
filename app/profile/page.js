@@ -1,4 +1,3 @@
-
 "use client"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Camera, Mail, Phone, MapPin, Calendar, User, Edit, Save, X, AlertCircle, CheckCircle, Upload } from "lucide-react"
+
+const API_BASE = 'http://localhost:4000'
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null)
@@ -50,7 +51,7 @@ export default function ProfilePage() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/profile')
+      const response = await fetch(`${API_BASE}/api/profile`)
 
       if (response.ok) {
         const data = await response.json()
@@ -96,7 +97,7 @@ export default function ProfilePage() {
         avatar: null
       }
 
-      const response = await fetch('/api/profile', {
+      const response = await fetch(`${API_BASE}/api/profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,6 +119,9 @@ export default function ProfilePage() {
           position: data.position,
           avatar: data.avatar
         })
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to create profile')
       }
     } catch (error) {
       console.error('Error creating default profile:', error)
@@ -130,7 +134,7 @@ export default function ProfilePage() {
       setSaving(true)
       setError(null)
 
-      const response = await fetch('/api/profile', {
+      const response = await fetch(`${API_BASE}/api/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -172,7 +176,7 @@ export default function ProfilePage() {
       setSaving(true)
       setError(null)
 
-      const response = await fetch('/api/profile/password', {
+      const response = await fetch(`${API_BASE}/api/profile/password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -209,7 +213,7 @@ export default function ProfilePage() {
       reader.onload = async (e) => {
         const avatarData = e.target.result
 
-        const response = await fetch('/api/profile/avatar', {
+        const response = await fetch(`${API_BASE}/api/profile/avatar`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

@@ -1,79 +1,51 @@
-import { NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
-
 const prisma = new PrismaClient()
 
-// GET top products
 export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const timeRange = searchParams.get('timeRange') || '30'
     const days = parseInt(timeRange)
 
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - days)
+    const endDate = new Date()
+    const startDate = new Date(endDate)
+    startDate.setDate(endDate.getDate() - days)
 
-    try {
-        const topProducts = await prisma.orderItem.groupBy({
-            by: ['sku', 'name'],
-            where: {
-                order: {
-                    createdAt: {
-                        gte: startDate
+    // Example: fetch top products with calculated revenue and units sold
+    const products = await prisma.product.findMany({
+        include: {
+            orderItems: {
+                where: {
+                    order: {
+                        createdAt: {
+                            gte: startDate,
+                            lt: endDate,
+                        }
                     }
+                },
+                select: {
+                    price: true,
+                    quantity: true,
                 }
-            },
-            _sum: {
-                quantity: true
-            },
-            orderBy: {
-                _sum: {
-                    quantity: 'desc'
-                }
-            },
-            take: 5
-        })
-
-        // Get previous period data for comparison
-        const previousStartDate = new Date()
-        previousStartDate.setDate(previousStartDate.getDate() - (days * 2))
-        const previousEndDate = new Date()
-        previousEndDate.setDate(previousEndDate.getDate() - days)
-
-        const previousTopProducts = await prisma.orderItem.groupBy({
-            by: ['sku'],
-            where: {
-                order: {
-                    createdAt: {
-                        gte: previousStartDate,
-                        lt: previousEndDate
-                    }
-                }
-            },
-            _sum: {
-                quantity: true
             }
-        })
+        }
+    })
 
-        // Calculate changes
-        const productsWithChange = topProducts.map(product => {
-            const previousProduct = previousTopProducts.find(p => p.sku === product.sku)
-            const previousQuantity = previousProduct?._sum?.quantity || 0
-            const currentQuantity = product._sum.quantity
-            const change = previousQuantity > 0 ? ((currentQuantity - previousQuantity) / previousQuantity) * 100 : 100
+    // Calculate revenue and units for each product
+    const result = products.map((product) => {
+        const revenue = product.orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+        const units = product.orderItems.reduce((sum, item) => sum + item.quantity, 0)
 
-            return {
-                name: product.name,
-                units: `${currentQuantity} units sold`,
-                change: change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`
-            }
-        })
+        // You might calculate change here or add other metrics as needed
 
-        return NextResponse.json(productsWithChange)
-    } catch (error) {
-        console.error('Error fetching top products:', error)
-        return NextResponse.json(
-            { error: 'Failed to fetch top products' },
-            { status: 500 }
-        )
-    }
+        return {
+            name: product.name,
+            units: `${units} units`,
+            revenue,
+            change: "+0.0%" // placeholder, replace with your own logic
+        }
+    })
+
+    return new Response(JSON.stringify(result), {
+        headers: { 'Content-Type': 'application/json' },
+    })
 }

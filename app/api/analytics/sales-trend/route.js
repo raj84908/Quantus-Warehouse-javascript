@@ -3,38 +3,48 @@ import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient()
 
-// GET sales trend data for charts
 export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const timeRange = searchParams.get('timeRange') || '30'
-    const days = parseInt(timeRange)
+    const days = parseInt(timeRange, 10)
 
     try {
         const salesData = []
 
+        const now = new Date()
+
+        // Compute today at UTC midnight
+        const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+
         for (let i = days - 1; i >= 0; i--) {
-            const date = new Date()
-            date.setDate(date.getDate() - i)
-            date.setHours(0, 0, 0, 0) // Start of day
+            // Compute UTC start and end for the day i days ago
+            const startUTC = new Date(Date.UTC(todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate() - i))
+            const endUTC = new Date(Date.UTC(todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate() - i + 1))
 
-            const nextDate = new Date(date)
-            nextDate.setDate(nextDate.getDate() + 1)
-
-            const dayRevenue = await prisma.order.aggregate({
+            // Query orderItems where order createdAt >= startUTC and < endUTC (UTC range)
+            const orderItems = await prisma.orderItem.findMany({
                 where: {
-                    createdAt: {
-                        gte: date,
-                        lt: nextDate
-                    }
+                    order: {
+                        createdAt: {
+                            gte: startUTC,
+                            lt: endUTC,
+                        },
+                    },
                 },
-                _sum: {
-                    total: true
-                }
+                select: {
+                    price: true,
+                    quantity: true,
+                },
             })
 
+            const dayRevenue = orderItems.reduce((total, item) => total + item.price * item.quantity, 0)
+
+            // Format date as local ISO date string for display - alternatively use startUTC.toISOString().split('T')[0]
+            const displayDate = startUTC.toISOString().split('T')[0]
+
             salesData.push({
-                date: date.toISOString().split('T')[0],
-                revenue: dayRevenue._sum.total || 0
+                date: displayDate,
+                revenue: dayRevenue,
             })
         }
 

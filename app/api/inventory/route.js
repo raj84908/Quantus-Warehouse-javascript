@@ -18,6 +18,245 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 // Serve uploaded images
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
+// Profile password storage (use proper hashing in production)
+let storedPasswordHash = null;
+
+// Helper functions
+function validateProfile(data) {
+    if (!data.firstName || !data.lastName || !data.email) {
+        return 'First name, last name, and email are required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(data.email)) return 'Invalid email format';
+    return null;
+}
+
+function hashPassword(password) {
+    // This is just for demo - use bcrypt or similar in production
+    return Buffer.from(password).toString('base64');
+}
+
+function verifyPassword(password, hash) {
+    // This is just for demo - use proper verification like bcrypt
+    return hashPassword(password) === hash;
+}
+
+// PROFILE ROUTES WITH PRISMA
+// GET /api/profile
+app.get('/api/profile', async (req, res) => {
+    try {
+        const profile = await prisma.profile.findFirst();
+        if (!profile) {
+            return res.status(404).json({ error: 'Profile not found' });
+        }
+        res.json(profile);
+    } catch (error) {
+        console.error('Error fetching profile:', error);
+        res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+});
+
+// POST /api/profile
+app.post('/api/profile', async (req, res) => {
+    try {
+        const data = req.body;
+        const error = validateProfile(data);
+        if (error) {
+            return res.status(400).json({ error });
+        }
+
+        // Check if profile already exists
+        const existingProfile = await prisma.profile.findFirst();
+        if (existingProfile) {
+            return res.status(400).json({ error: 'Profile already exists. Use PUT to update.' });
+        }
+
+        const profile = await prisma.profile.create({
+            data: {
+                firstName: data.firstName,
+                lastName: data.lastName,
+                email: data.email,
+                phone: data.phone || '',
+                location: data.location || '',
+                bio: data.bio || '',
+                department: data.department || 'General',
+                position: data.position || 'Employee',
+                employeeId: data.employeeId || 'EMP-' + Date.now().toString().slice(-3),
+                joinDate: data.joinDate ? new Date(data.joinDate) : new Date(),
+                avatar: data.avatar || null,
+            }
+        });
+
+        res.status(201).json(profile);
+    } catch (error) {
+        console.error('Error creating profile:', error);
+        if (error.code === 'P2002') {
+            // Unique constraint violation
+            res.status(400).json({ error: 'Email or Employee ID already exists' });
+        } else {
+            res.status(500).json({ error: 'Failed to create profile' });
+        }
+    }
+});
+
+// PUT /api/profile
+app.put('/api/profile', async (req, res) => {
+    try {
+        const data = req.body;
+        const error = validateProfile(data);
+        if (error) {
+            return res.status(400).json({ error });
+        }
+
+        // Find existing profile
+        const existingProfile = await prisma.profile.findFirst();
+        if (!existingProfile) {
+            return res.status(404).json({ error: 'Profile not found' });
+        }
+
+        const profile = await prisma.profile.update({
+            where: { id: existingProfile.id },
+            data: {
+                firstName: data.firstName,
+                lastName: data.lastName,
+                email: data.email,
+                phone: data.phone || '',
+                location: data.location || '',
+                bio: data.bio || '',
+                department: data.department,
+                position: data.position,
+                avatar: data.avatar
+            }
+        });
+
+        res.json(profile);
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        if (error.code === 'P2002') {
+            res.status(400).json({ error: 'Email already exists' });
+        } else {
+            res.status(500).json({ error: 'Failed to update profile' });
+        }
+    }
+});
+
+// DELETE /api/profile
+app.delete('/api/profile', async (req, res) => {
+    try {
+        const profile = await prisma.profile.findFirst();
+        if (!profile) {
+            return res.status(404).json({ error: 'Profile not found' });
+        }
+
+        const deleted = await prisma.profile.delete({
+            where: { id: profile.id }
+        });
+
+        res.json({ message: 'Profile deleted', profile: deleted });
+    } catch (error) {
+        console.error('Error deleting profile:', error);
+        res.status(500).json({ error: 'Failed to delete profile' });
+    }
+});
+
+// PUT /api/profile/password - Change password
+app.put('/api/profile/password', (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        // Validate required fields
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({
+                error: 'Current password and new password are required'
+            });
+        }
+
+        // Validate new password strength
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                error: 'New password must be at least 6 characters long'
+            });
+        }
+
+        // For demo purposes, if no password is set yet, accept any current password
+        if (storedPasswordHash && !verifyPassword(currentPassword, storedPasswordHash)) {
+            return res.status(400).json({
+                error: 'Current password is incorrect'
+            });
+        }
+
+        // Hash and store new password
+        storedPasswordHash = hashPassword(newPassword);
+
+        res.json({
+            message: 'Password changed successfully'
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+
+// PUT /api/profile/avatar - Update profile avatar
+app.put('/api/profile/avatar', async (req, res) => {
+    try {
+        const { avatar } = req.body;
+
+        const existingProfile = await prisma.profile.findFirst();
+        if (!existingProfile) {
+            return res.status(404).json({ error: 'Profile not found' });
+        }
+
+        // Validate avatar data
+        if (!avatar || !avatar.startsWith('data:image/')) {
+            return res.status(400).json({
+                error: 'Invalid avatar data'
+            });
+        }
+
+        // Check file size (base64 encoded, so roughly 4/3 the original size)
+        const sizeInBytes = (avatar.length * 3) / 4;
+        const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+
+        if (sizeInBytes > maxSizeInBytes) {
+            return res.status(400).json({
+                error: 'Avatar file size must be less than 5MB'
+            });
+        }
+
+        // Update profile with new avatar
+        const profile = await prisma.profile.update({
+            where: { id: existingProfile.id },
+            data: { avatar }
+        });
+
+        res.json(profile);
+    } catch (error) {
+        console.error('Error updating avatar:', error);
+        res.status(500).json({ error: 'Failed to update avatar' });
+    }
+});
+
+// DELETE /api/profile/avatar - Remove profile avatar
+app.delete('/api/profile/avatar', async (req, res) => {
+    try {
+        const existingProfile = await prisma.profile.findFirst();
+        if (!existingProfile) {
+            return res.status(404).json({ error: 'Profile not found' });
+        }
+
+        const profile = await prisma.profile.update({
+            where: { id: existingProfile.id },
+            data: { avatar: null }
+        });
+
+        res.json(profile);
+    } catch (error) {
+        console.error('Error removing avatar:', error);
+        res.status(500).json({ error: 'Failed to remove avatar' });
+    }
+});
+
+// EXISTING PRODUCT ROUTES
 // GET all products (with optional search and category filter)
 app.get('/api/products', async (req, res) => {
     const { search, category } = req.query;
@@ -28,7 +267,7 @@ app.get('/api/products', async (req, res) => {
         whereConditions.OR = [
             { name: { contains: search } },
             { sku: { contains: search } },
-            { category: { name: { contains: search } } }, // Updated to search category.name
+            { category: { name: { contains: search } } },
             { location: { contains: search } },
         ];
     }
@@ -41,14 +280,14 @@ app.get('/api/products', async (req, res) => {
             'accessories': 'Accessories'
         };
         const mappedCategory = categoryMap[category.toLowerCase()] || category;
-        whereConditions.category = { name: { equals: mappedCategory } }; // Updated to filter by category.name
+        whereConditions.category = { name: { equals: mappedCategory } };
     }
 
     try {
         const products = await prisma.product.findMany({
             where: Object.keys(whereConditions).length > 0 ? whereConditions : undefined,
             include: {
-                category: true // Include category data in response
+                category: true
             }
         });
         res.json(products);
@@ -85,7 +324,7 @@ app.post('/api/products', async (req, res) => {
             where: { sku: data.sku },
             update: {
                 name: data.name,
-                category: { connect: { id: data.categoryId } }, // <-- use categoryId
+                category: { connect: { id: data.categoryId } },
                 location: data.location,
                 stock: data.stock,
                 minStock: data.minStock,
@@ -97,7 +336,7 @@ app.post('/api/products', async (req, res) => {
             create: {
                 sku: data.sku,
                 name: data.name,
-                category: { connect: { id: data.categoryId } }, // <-- use categoryId
+                category: { connect: { id: data.categoryId } },
                 location: data.location,
                 stock: data.stock,
                 minStock: data.minStock,
@@ -108,7 +347,6 @@ app.post('/api/products', async (req, res) => {
             },
         });
 
-
         res.json(product);
     } catch (error) {
         console.error('Error adding/updating product:', error);
@@ -117,7 +355,6 @@ app.post('/api/products', async (req, res) => {
 });
 
 // PUT update product
-// Adjust stock by delta (positive = add, negative = remove)
 app.put('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     const { sku, name, categoryId, location, stock, minStock, value, status, image } = req.body;
@@ -128,7 +365,7 @@ app.put('/api/products/:id', async (req, res) => {
             data: {
                 sku,
                 name,
-                categoryId: Number(categoryId), // ensure this is a number
+                categoryId: Number(categoryId),
                 location,
                 stock: Number(stock),
                 minStock: Number(minStock),
@@ -145,21 +382,15 @@ app.put('/api/products/:id', async (req, res) => {
     }
 });
 
-
-
-
-// DELETE a product
 // DELETE a product
 app.delete('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        // First, nullify productId in related StockAdjustments (if any)
         await prisma.stockAdjustment.updateMany({
             where: { productId: Number(id) },
             data: { productId: null }
         });
 
-        // Then delete the product
         await prisma.product.delete({
             where: { id: Number(id) }
         });
@@ -171,21 +402,12 @@ app.delete('/api/products/:id', async (req, res) => {
     }
 });
 
-
-
-
-//Stock Adjustment stuff
-
-// Add this to your route.js file
-
-// POST create a new stock adjustment record and update product stock
+// STOCK ADJUSTMENT ROUTES
 app.post('/api/stock-adjustments', async (req, res) => {
     const { productId, quantity, reason, notes, adjustedBy } = req.body;
 
     try {
-        // Start a transaction to ensure both operations succeed or fail together
         const result = await prisma.$transaction(async (prisma) => {
-            // 1. Get the current product
             const product = await prisma.product.findUnique({
                 where: { id: Number(productId) }
             });
@@ -197,19 +419,16 @@ app.post('/api/stock-adjustments', async (req, res) => {
             const previousStock = product.stock;
             const newStock = previousStock + quantity;
 
-            // 2. Update the product stock
             const updatedProduct = await prisma.product.update({
                 where: { id: Number(productId) },
                 data: {
                     stock: newStock,
                     lastUpdated: new Date(),
-                    // Update status based on new stock level compared to minStock
                     status: newStock <= 0 ? 'OUT_OF_STOCK' :
                         newStock <= product.minStock ? 'LOW_STOCK' : 'IN_STOCK'
                 }
             });
 
-            // 3. Create a stock adjustment record
             const stockAdjustment = await prisma.stockAdjustment.create({
                 data: {
                     productId: Number(productId),
@@ -235,59 +454,6 @@ app.post('/api/stock-adjustments', async (req, res) => {
     }
 });
 
-// GET all stock adjustments with optional filtering
-app.get('/api/stock-adjustments', async (req, res) => {
-    const { productId, reason, startDate, endDate } = req.query;
-
-    try {
-        let whereConditions = {};
-
-        if (productId) {
-            whereConditions.productId = Number(productId);
-        }
-
-        if (reason) {
-            whereConditions.reason = reason;
-        }
-
-        // Date range filter
-        if (startDate || endDate) {
-            whereConditions.createdAt = {};
-
-            if (startDate) {
-                whereConditions.createdAt.gte = new Date(startDate);
-            }
-
-            if (endDate) {
-                whereConditions.createdAt.lte = new Date(endDate);
-            }
-        }
-
-        const adjustments = await prisma.stockAdjustment.findMany({
-            where: whereConditions,
-            include: {
-                product: {
-                    select: {
-                        name: true,
-                        sku: true
-                    }
-                }
-            },
-            orderBy: {
-                createdAt: 'desc'
-            }
-        });
-
-        res.json(adjustments);
-    } catch (error) {
-        console.error('Error fetching stock adjustments:', error);
-        res.status(500).json({ error: 'Failed to fetch stock adjustments' });
-    }
-});
-
-// GET a specific adjustment by ID
-
-// GET stock adjustments with limit and offset
 app.get('/api/stock-adjustments', async (req, res) => {
     const { productId, reason, startDate, endDate, limit, offset } = req.query;
 
@@ -302,7 +468,6 @@ app.get('/api/stock-adjustments', async (req, res) => {
             whereConditions.reason = reason;
         }
 
-        // Date range filter
         if (startDate || endDate) {
             whereConditions.createdAt = {};
 
@@ -339,7 +504,6 @@ app.get('/api/stock-adjustments', async (req, res) => {
     }
 });
 
-
 app.delete('/api/stock-adjustments/:id', async (req, res) => {
     const { id } = req.params;
 
@@ -355,8 +519,7 @@ app.delete('/api/stock-adjustments/:id', async (req, res) => {
     }
 });
 
-
-// GET all orders
+// ORDER ROUTES
 app.get('/api/orders', async (req, res) => {
     try {
         const orders = await prisma.order.findMany({
@@ -370,7 +533,6 @@ app.get('/api/orders', async (req, res) => {
     }
 });
 
-// POST create a new order
 app.post('/api/orders', async (req, res) => {
     const data = req.body;
     try {
@@ -398,6 +560,161 @@ app.post('/api/orders', async (req, res) => {
     }
 });
 
+// PEOPLE ROUTES WITH PRISMA
+// GET /api/people - Get all people
+app.get('/api/people', async (req, res) => {
+    try {
+        const people = await prisma.people.findMany({
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(people);
+    } catch (error) {
+        console.error('Error fetching people:', error);
+        res.status(500).json({ error: 'Failed to fetch people' });
+    }
+});
+
+// POST /api/people - Create new person
+app.post('/api/people', async (req, res) => {
+    try {
+        const data = req.body;
+
+        // Validate required fields
+        if (!data.name || !data.email) {
+            return res.status(400).json({ error: 'Name and email are required' });
+        }
+
+        // Check if email already exists
+        const existingPerson = await prisma.people.findUnique({
+            where: { email: data.email }
+        });
+
+        if (existingPerson) {
+            return res.status(400).json({ error: 'Email already exists' });
+        }
+
+        const newPerson = await prisma.people.create({
+            data: {
+                name: data.name,
+                email: data.email,
+                phone: data.phone || null,
+                department: data.department || null,
+                position: data.position || null,
+                status: data.status || 'Active',
+                hireDate: data.hireDate ? new Date(data.hireDate) : null,
+                performance: data.performance || null,
+                type: data.type || 'staff',
+                company: data.company || null,
+                address: data.address || null,
+                notes: data.notes || null
+            }
+        });
+
+        res.status(201).json(newPerson);
+    } catch (error) {
+        console.error('Error creating person:', error);
+        if (error.code === 'P2002') {
+            res.status(400).json({ error: 'Email already exists' });
+        } else {
+            res.status(500).json({ error: 'Failed to create person' });
+        }
+    }
+});
+
+// GET /api/people/:id - Get specific person
+app.get('/api/people/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const person = await prisma.people.findUnique({
+            where: { id: Number(id) }
+        });
+
+        if (!person) {
+            return res.status(404).json({ error: 'Person not found' });
+        }
+
+        res.json(person);
+    } catch (error) {
+        console.error('Error fetching person:', error);
+        res.status(500).json({ error: 'Failed to fetch person' });
+    }
+});
+
+// PUT /api/people/:id - Update specific person
+app.put('/api/people/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        // Validate required fields
+        if (!data.name || !data.email) {
+            return res.status(400).json({ error: 'Name and email are required' });
+        }
+
+        // Check if email already exists (excluding current person)
+        const existingPerson = await prisma.people.findFirst({
+            where: {
+                email: data.email,
+                NOT: { id: Number(id) }
+            }
+        });
+
+        if (existingPerson) {
+            return res.status(400).json({ error: 'Email already exists' });
+        }
+
+        const updatedPerson = await prisma.people.update({
+            where: { id: Number(id) },
+            data: {
+                name: data.name,
+                email: data.email,
+                phone: data.phone || null,
+                department: data.department || null,
+                position: data.position || null,
+                status: data.status || 'Active',
+                hireDate: data.hireDate ? new Date(data.hireDate) : null,
+                performance: data.performance || null,
+                type: data.type || 'staff',
+                company: data.company || null,
+                address: data.address || null,
+                notes: data.notes || null
+            }
+        });
+
+        res.json(updatedPerson);
+    } catch (error) {
+        console.error('Error updating person:', error);
+        if (error.code === 'P2002') {
+            res.status(400).json({ error: 'Email already exists' });
+        } else if (error.code === 'P2025') {
+            res.status(404).json({ error: 'Person not found' });
+        } else {
+            res.status(500).json({ error: 'Failed to update person' });
+        }
+    }
+});
+
+// DELETE /api/people/:id - Delete specific person
+app.delete('/api/people/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const deletedPerson = await prisma.people.delete({
+            where: { id: Number(id) }
+        });
+
+        res.json({ message: 'Person deleted successfully', person: deletedPerson });
+    } catch (error) {
+        console.error('Error deleting person:', error);
+        if (error.code === 'P2025') {
+            res.status(404).json({ error: 'Person not found' });
+        } else {
+            res.status(500).json({ error: 'Failed to delete person' });
+        }
+    }
+});
+
+// CATEGORY ROUTES
 app.get('/api/categories', async (req, res) => {
     try {
         const categories = await prisma.category.findMany({
@@ -409,8 +726,6 @@ app.get('/api/categories', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch categories' });
     }
 });
-
-
 
 // Root route
 app.get('/', (req, res) => {

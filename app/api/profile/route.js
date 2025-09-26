@@ -1,106 +1,68 @@
-import { NextResponse } from 'next/server'
+// backend/api/profile.js
+const express = require('express')
+const router = express.Router()
 
-// In-memory storage for profile (starts empty - replace with your database)
+// In-memory storage (replace with database in production)
 let profile = null
 
-// GET /api/profile - Get current user profile
-export async function GET(request) {
-    try {
-        if (!profile) {
-            return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-        }
-        return NextResponse.json(profile)
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
+// Helper: validate required fields
+function validateProfile(data) {
+    if (!data.firstName || !data.lastName || !data.email) {
+        return 'First name, last name, and email are required'
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(data.email)) return 'Invalid email format'
+    return null
 }
 
-// POST /api/profile - Create new profile
-export async function POST(request) {
-    try {
-        const data = await request.json()
+// GET /api/profile
+router.get('/', (req, res) => {
+    if (!profile) return res.status(404).json({ error: 'Profile not found' })
+    res.json(profile)
+})
 
-        // Validate required fields
-        if (!data.firstName || !data.lastName || !data.email) {
-            return NextResponse.json({
-                error: 'First name, last name, and email are required'
-            }, { status: 400 })
-        }
+// POST /api/profile
+router.post('/', (req, res) => {
+    const data = req.body
+    const error = validateProfile(data)
+    if (error) return res.status(400).json({ error })
 
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(data.email)) {
-            return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
-        }
-
-        const newProfile = {
-            id: 'profile_' + Date.now(),
-            ...data,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        }
-
-        profile = newProfile
-        return NextResponse.json(newProfile, { status: 201 })
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 })
+    profile = {
+        id: 'profile_' + Date.now(),
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
     }
-}
+    res.status(201).json(profile)
+})
 
-// PUT /api/profile - Update profile
-export async function PUT(request) {
-    try {
-        if (!profile) {
-            return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-        }
+// PUT /api/profile
+router.put('/', (req, res) => {
+    if (!profile) return res.status(404).json({ error: 'Profile not found' })
 
-        const data = await request.json()
+    const data = req.body
+    const error = validateProfile(data)
+    if (error) return res.status(400).json({ error })
 
-        // Validate required fields
-        if (!data.firstName || !data.lastName || !data.email) {
-            return NextResponse.json({
-                error: 'First name, last name, and email are required'
-            }, { status: 400 })
-        }
-
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(data.email)) {
-            return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
-        }
-
-        // Update profile while preserving certain fields
-        profile = {
-            ...profile,
-            ...data,
-            id: profile.id, // Don't allow ID changes
-            employeeId: profile.employeeId, // Don't allow employee ID changes
-            joinDate: profile.joinDate, // Don't allow join date changes
-            createdAt: profile.createdAt, // Don't allow created date changes
-            updatedAt: new Date().toISOString()
-        }
-
-        return NextResponse.json(profile)
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
+    profile = {
+        ...profile,
+        ...data,
+        id: profile.id,          // keep original id
+        employeeId: profile.employeeId, // preserve employeeId if exists
+        joinDate: profile.joinDate,     // preserve joinDate
+        createdAt: profile.createdAt,
+        updatedAt: new Date()
     }
-}
 
-// DELETE /api/profile - Delete profile
-export async function DELETE(request) {
-    try {
-        if (!profile) {
-            return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-        }
+    res.json(profile)
+})
 
-        const deletedProfile = { ...profile }
-        profile = null
+// DELETE /api/profile
+router.delete('/', (req, res) => {
+    if (!profile) return res.status(404).json({ error: 'Profile not found' })
+    const deleted = profile
+    profile = null
+    res.json({ message: 'Profile deleted', profile: deleted })
+})
 
-        return NextResponse.json({
-            message: 'Profile deleted successfully',
-            profile: deletedProfile
-        })
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to delete profile' }, { status: 500 })
-    }
-}
+module.exports = router
