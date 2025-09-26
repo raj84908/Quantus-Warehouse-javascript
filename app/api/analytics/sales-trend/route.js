@@ -43,9 +43,7 @@ export async function GET(request) {
                 String(startLocal.getDate()).padStart(2, '0')
 
             const dayRevenue = orderItems.reduce((total, item) => total + item.price * item.quantity, 0)
-
-// Debug statements
-            console.log(`Day ${i} (${displayDate}): Revenue=${dayRevenue}, OrderItems=${orderItems.length}`)
+            
             if (dayRevenue > 0) {
                 console.log('Order items for this day:', orderItems.map(item => ({
                     price: item.price,

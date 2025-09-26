@@ -1,21 +1,20 @@
 "use client"
+
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import dynamic from "next/dynamic"
+import { Search, Filter, Download, Plus } from "lucide-react"
+
+// Leaflet imports
+import "leaflet/dist/leaflet.css"
+
 const TrackingMap = dynamic(
     () => import("./TrackingMap").then((mod) => mod.default),
     { ssr: false }
 )
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Search, Filter, Download, Plus } from "lucide-react"
-
-// Leaflet imports
-import 'leaflet/dist/leaflet.css'
 
 export default function ShipmentsPage() {
   const [shipments, setShipments] = useState([
@@ -67,21 +66,21 @@ export default function ShipmentsPage() {
   ])
 
   const [selectedShipment, setSelectedShipment] = useState(null)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [trackingNumberInput, setTrackingNumberInput] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [searchTerm, setSearchTerm] = useState("")
 
-  // Fix for Leaflet z-index issue with dialogs
+  // Leaflet z-index fix for dialogs
   useEffect(() => {
-    const style = document.createElement('style');
+    const style = document.createElement("style")
     style.innerHTML = `
       .leaflet-container { z-index: 1; }
       .leaflet-pane { z-index: 1; }
       .leaflet-top, .leaflet-bottom { z-index: 1; }
-    `;
-    document.head.appendChild(style);
-
+    `
+    document.head.appendChild(style)
     return () => document.head.removeChild(style)
-  }, []);
+  }, [])
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -98,7 +97,7 @@ export default function ShipmentsPage() {
     }
   }
 
-  const filteredShipments = shipments.filter(shipment => {
+  const filteredShipments = shipments.filter((shipment) => {
     const matchesSearch =
         shipment.shipmentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         shipment.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -110,10 +109,27 @@ export default function ShipmentsPage() {
     return matchesSearch && matchesStatus
   })
 
+  // Handle tracking number search and select shipment
+  const handleTrackPackage = () => {
+    const shipment = shipments.find(
+        (s) =>
+            s.trackingNumber.toLowerCase() === trackingNumberInput.toLowerCase() ||
+            s.shipmentId.toLowerCase() === trackingNumberInput.toLowerCase()
+    )
+    if (shipment) {
+      setSelectedShipment(shipment)
+      setSearchTerm("") // Reset other searches
+      setStatusFilter("all")
+    } else {
+      alert("Shipment not found with that tracking number or shipment ID.")
+      setSelectedShipment(null)
+    }
+  }
+
   return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 relative">
-        {/* Main Content */}
         <div className="container mx-auto px-6 py-8">
+          {/* Header */}
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Shipment Tracking</h1>
@@ -131,6 +147,19 @@ export default function ShipmentsPage() {
             </div>
           </div>
 
+          {/* Tracking Number Search */}
+          <div className="mb-4 flex items-center space-x-3">
+            <Input
+                placeholder="Enter tracking number or shipment ID"
+                value={trackingNumberInput}
+                onChange={(e) => setTrackingNumberInput(e.target.value)}
+                className="max-w-xs"
+            />
+            <Button onClick={handleTrackPackage} disabled={!trackingNumberInput.trim()}>
+              Track Package
+            </Button>
+          </div>
+
           {/* Package Locations with Map */}
           <Card className="mb-8 dark:bg-gray-800 dark:border-gray-700">
             <CardHeader>
@@ -141,7 +170,7 @@ export default function ShipmentsPage() {
               <TrackingMap
                   shipments={shipments}
                   selectedShipment={selectedShipment}
-                  onSelectShipment={() => {}}
+                  onSelectShipment={setSelectedShipment}
               />
             </CardContent>
           </Card>
@@ -184,16 +213,19 @@ export default function ShipmentsPage() {
                   {filteredShipments.map((shipment) => (
                       <tr
                           key={shipment.id}
-                          className="border-b bg-gray-100/50 dark:bg-gray-700/50 cursor-not-allowed"
+                          className={`border-b cursor-pointer ${
+                              selectedShipment?.id === shipment.id
+                                  ? "bg-blue-100 dark:bg-blue-900"
+                                  : "bg-gray-100/50 dark:bg-gray-700/50"
+                          }`}
+                          onClick={() => setSelectedShipment(shipment)}
                       >
                         <td className="py-3 px-4 font-medium text-gray-900 dark:text-gray-100">{shipment.shipmentId}</td>
                         <td className="py-3 px-4 font-medium text-blue-600 dark:text-blue-400">{shipment.orderId}</td>
                         <td className="py-3 px-4 text-gray-900 dark:text-gray-100">{shipment.customer}</td>
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{shipment.destination}</td>
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{shipment.carrier}</td>
-                        <td className="py-3 px-4 font-mono text-sm text-blue-600 dark:text-blue-400">
-                          {shipment.trackingNumber}
-                        </td>
+                        <td className="py-3 px-4 font-mono text-sm text-blue-600 dark:text-blue-400">{shipment.trackingNumber}</td>
                         <td className="py-3 px-4">
                           <Badge className={getStatusColor(shipment.status)}>{shipment.status}</Badge>
                         </td>
@@ -201,21 +233,24 @@ export default function ShipmentsPage() {
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{shipment.weight}</td>
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{shipment.estDelivery}</td>
                         <td className="py-3 px-4">
-                          <Button size="sm" variant="outline" disabled>•••</Button>
+                          <Button size="sm" variant="outline" disabled>
+                            •••
+                          </Button>
                         </td>
                       </tr>
                   ))}
+                  {filteredShipments.length === 0 && (
+                      <tr>
+                        <td colSpan={11} className="text-center py-6 text-gray-500 dark:text-gray-400">
+                          No shipments found.
+                        </td>
+                      </tr>
+                  )}
                   </tbody>
                 </table>
               </div>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 flex flex-col items-center justify-center z-50">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">Page Under Development</h1>
-          <p className="text-gray-700 dark:text-gray-300 text-center px-4">This feature is not interactive yet. Stay tuned!</p>
         </div>
       </div>
   )

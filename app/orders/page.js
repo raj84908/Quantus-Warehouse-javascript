@@ -237,7 +237,7 @@ export default function OrdersPage() {
 
   const calculateTotal = (items = invoiceItems) => {
     const subtotal = calculateSubtotal(items)
-    return subtotal + calculateTax(subtotal)
+    return subtotal;
   }
 
   // Toggle order status between Processing and Completed
@@ -294,7 +294,7 @@ export default function OrdersPage() {
             const invoiceNumber = isNewInvoice
                 ? `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
                 : orderData.orderId.replace('ORD', 'INV')
-            const currentDate = new Date().toLocaleDateString()
+            const currentDate = new Date(orderData.createdAt).toLocaleDateString()
 
             // === HEADER ===
             if (logoBase64) {
@@ -780,10 +780,6 @@ export default function OrdersPage() {
                                 <div className="flex justify-between text-gray-900 dark:text-gray-100">
                                   <span className="font-medium">Subtotal:</span>
                                   <span className="font-semibold">${calculateSubtotal().toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-gray-900 dark:text-gray-100">
-                                  <span className="font-medium">Tax (8.5%):</span>
-                                  <span className="font-semibold">${calculateTax(calculateSubtotal()).toFixed(2)}</span>
                                 </div>
                                 <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
                                   <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-gray-100">
