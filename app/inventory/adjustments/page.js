@@ -10,6 +10,7 @@ import { Search, Filter, Calendar, ArrowLeft, Download } from "lucide-react";
 import Link from "next/link";
 
 export default function StockAdjustmentsPage() {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const [adjustments, setAdjustments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [initialLoad, setInitialLoad] = useState(true);
@@ -38,7 +39,7 @@ export default function StockAdjustmentsPage() {
             if (filter.endDate) params.append('endDate', filter.endDate);
             if (filter.productId) params.append('productId', filter.productId);
 
-            const response = await fetch(`http://localhost:4000/api/stock-adjustments?${params}`);
+            const response = await fetch(`${API_BASE}/api/stock-adjustments?${params}`);
             if (!response.ok) throw new Error('Failed to fetch adjustments');
 
             const data = await response.json();
@@ -109,7 +110,7 @@ export default function StockAdjustmentsPage() {
 
         try {
             setLoading(true);
-            const response = await fetch(`http://localhost:4000/api/stock-adjustments/${id}`, {
+            const response = await fetch(`${API_BASE}/api/stock-adjustments/${id}`, {
                 method: 'DELETE'
             });
 

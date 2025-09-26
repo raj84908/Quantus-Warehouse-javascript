@@ -34,6 +34,7 @@ export default function OrdersPage() {
   const [orderManager, setOrderManager] = useState(null);
   const [activeTab, setActiveTab] = useState("all") // all, processing, completed
   const [logoData, setLogoData] = useState(null); // Add state for logo
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   const [orders, setOrders] = useState([
     {
       orderId: "ORD-12847",
@@ -587,7 +588,7 @@ export default function OrdersPage() {
                                       <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
                                         {product.image ? (
                                             <img
-                                                src={`http://localhost:4000${product.image}`}  // Add your backend URL
+                                                src={`${API_BASE}${product.image}`}  // Add your backend URL
                                                 alt={product.name}
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => {

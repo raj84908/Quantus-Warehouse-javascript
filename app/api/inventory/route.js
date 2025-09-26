@@ -4,7 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const app = express();
 const prisma = new PrismaClient();
 
@@ -732,7 +732,7 @@ app.get('/', (req, res) => {
     res.send('API server is running');
 });
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on ${API_BASE}`);
 });

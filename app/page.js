@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [recentOrders, setRecentOrders] = useState([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(true);
   const [ordersToday, setOrdersToday] = useState(0);
-
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   // Fetch recent stock adjustments when component mounts
   useEffect(() => {
     fetchRecentActivity();
@@ -34,7 +34,7 @@ export default function Dashboard() {
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
 
-      const res = await fetch(`http://localhost:4000/api/orders?start=${startOfDay.toISOString()}&end=${endOfDay.toISOString()}`);
+      const res = await fetch(`${API_BASE}/api/orders?start=${startOfDay.toISOString()}&end=${endOfDay.toISOString()}`);
       if (!res.ok) throw new Error("Failed to fetch today's orders");
       const data = await res.json();
       setOrdersToday(data.length);
@@ -49,7 +49,7 @@ export default function Dashboard() {
     setIsLoading(true);
     try {
       // Fetch the 5 most recent stock adjustments
-      const response = await fetch('http://localhost:4000/api/stock-adjustments?limit=5');
+      const response = await fetch(`${API_BASE}/api/stock-adjustments?limit=5`);
       if (!response.ok) throw new Error('Failed to fetch recent activity');
 
       const data = await response.json();
@@ -89,7 +89,7 @@ export default function Dashboard() {
   const fetchRecentOrders = async () => {
     setIsOrdersLoading(true);
     try {
-      const response = await fetch('http://localhost:4000/api/orders?limit=5');
+      const response = await fetch(`${API_BASE}/api/orders?limit=5`);
       if (!response.ok) throw new Error('Failed to fetch recent orders');
       const data = await response.json();
 

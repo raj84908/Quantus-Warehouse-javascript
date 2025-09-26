@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Filter, Download, Upload, Plus, Users, UserX, UserCheck, Star, Mail, Phone, Edit, Trash2, Eye, Building2, UserCircle } from "lucide-react"
 
-const API_BASE = 'http://localhost:4000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function StaffPage() {
   // State management

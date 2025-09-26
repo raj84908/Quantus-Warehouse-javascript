@@ -27,7 +27,6 @@ import {
 } from "lucide-react"
 import {useInventoryStats} from "../../hooks/InventoryStats";
 
-
 export default function InventoryPage() {
     const {inventoryItems, stats, loading, refresh } = useInventoryStats();
     const [searchTerm, setSearchTerm] = useState("");
@@ -51,8 +50,8 @@ export default function InventoryPage() {
         image: null,
     });
 
-    
-    
+
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const [editItem, setEditItem] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
 
@@ -93,7 +92,7 @@ export default function InventoryPage() {
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                const res = await fetch('http://localhost:4000/api/categories'); // make sure you have this route
+                const res = await fetch(`${API_BASE}/api/categories`); // make sure you have this route
                 const data = await res.json();
                 setCategories(data);
             } catch (err) {
@@ -165,7 +164,7 @@ export default function InventoryPage() {
     const handleUpdateItem = async (e) => {
         e.preventDefault();
         try {
-            const res = await fetch(`http://localhost:4000/api/products/${editItem.id}`, {
+            const res = await fetch(`${API_BASE}/api/products/${editItem.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -274,7 +273,7 @@ export default function InventoryPage() {
                     : -Math.abs(Number(item.adjustment));
 
                 // Use the new stock adjustment endpoint
-                const res = await fetch('http://localhost:4000/api/stock-adjustments', {
+                const res = await fetch(`${API_BASE}/api/stock-adjustments`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -413,7 +412,7 @@ export default function InventoryPage() {
                                                                 <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
                                                                     {product.image ? (
                                                                         <img
-                                                                            src={`http://localhost:4000${product.image}`}
+                                                                            src={`${API_BASE}${product.image}`}
                                                                             alt={product.name}
                                                                             className="w-full h-full object-cover"
                                                                             onError={(e) => {
@@ -934,7 +933,7 @@ export default function InventoryPage() {
                                                         onClick={async () => {
                                                             if (confirm('Are you sure you want to delete this item?')) {
                                                                 try {
-                                                                    const res = await fetch(`http://localhost:4000/api/products/${item.id}`, {
+                                                                    const res = await fetch(`${API_BASE}/api/products/${item.id}`, {
                                                                         method: "DELETE",
                                                                     });
                                                                     if (!res.ok) throw new Error("Failed to delete");
