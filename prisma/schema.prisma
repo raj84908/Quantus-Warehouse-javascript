@@ -1,64 +1,58 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-
-//Stock Adjustement
 model StockAdjustment {
-  id            Int       @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   productId     Int?
-  product       Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
   quantity      Int
   previousStock Int
   newStock      Int
   reason        String
   notes         String?
   adjustedBy    String?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime @default(now())
+  product       Product? @relation(fields: [productId], references: [id])
 }
 
-//Storing Inventory Items
 model Product {
-  id           Int      @id @default(autoincrement())
-  sku          String   @unique
-  name         String
-  categoryId   Int      // Foreign key field
-  category     Category @relation(fields: [categoryId], references: [id]) // Relation field
-  stock        Int
-  minStock     Int
-  location     String
-  value        Float
-  status       Status   @default(IN_STOCK)
-  lastUpdated  DateTime @updatedAt
-  image        String?
+  id               Int               @id @default(autoincrement())
+  sku              String            @unique
+  name             String
+  categoryId       Int
+  stock            Int
+  minStock         Int
+  location         String
+  value            Float
+  status           Status            @default(IN_STOCK)
+  lastUpdated      DateTime          @updatedAt
+  image            String?
+  orderItems       OrderItem[]
+  category         Category          @relation(fields: [categoryId], references: [id])
   stockAdjustments StockAdjustment[]
-  orderItems    OrderItem[]  // <-- Add this line for relation back-reference
 }
-//Orders 
 
 model Order {
-  id            Int           @id @default(autoincrement())
-  orderId       String        @unique
-  customer      String
-  email         String
-  phone         String?
+  id             Int         @id @default(autoincrement())
+  orderId        String      @unique
+  customer       String
+  email          String
+  phone          String?
   billingAddress String?
-  subtotal      Float
-  total         Float
-  status        String        // "Processing" or "Completed"
-  priority      String        // "High", "Medium", "Low"
-  dueDate       String
-  assignedTo    String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  items         OrderItem[]
+  subtotal       Float
+  total          Float
+  status         String
+  priority       String
+  dueDate        String
+  assignedTo     String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          OrderItem[]
 }
 
 model OrderItem {
@@ -67,31 +61,23 @@ model OrderItem {
   name      String
   price     Float
   quantity  Int
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId   Int
-  product   Product? @relation(fields: [productId], references: [id])  // Correct relation
-  productId Int?     // Optional foreign key to Product
+  productId Int?
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id])
 }
 
-
-
-
 model User {
-  id Int @id @default(autoincrement())
-  name String
+  id    Int    @id @default(autoincrement())
+  name  String
   email String @unique
 }
 
-enum Status {
-  IN_STOCK
-  LOW_STOCK
-  OUT_OF_STOCK
-}
 model Category {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   products  Product[]
 }
 
@@ -99,48 +85,52 @@ model Report {
   id          Int      @id @default(autoincrement())
   name        String
   description String?
-  category    String   // "Inventory", "Sales", "Operations", "HR"
-  format      String   // "PDF", "Excel", "CSV"
-  filePath    String   // Path to the generated file
-  size        Int      // File size in bytes
-  timeRange   String   // "7", "30", "90", "365"
+  category    String
+  format      String
+  filePath    String
+  size        Int
+  timeRange   String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-// Add this Profile model to your existing schema.prisma file
-
 model Profile {
-  id          Int      @id @default(autoincrement())
-  firstName   String
-  lastName    String
-  email       String   @unique
-  phone       String?
-  location    String?
-  bio         String?
-  department  String
-  position    String
-  employeeId  String   @unique
-  joinDate    DateTime
-  avatar      String?  // Base64 encoded image or URL
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  firstName  String
+  lastName   String
+  email      String   @unique
+  phone      String?
+  location   String?
+  bio        String?
+  department String
+  position   String
+  employeeId String   @unique
+  joinDate   DateTime
+  avatar     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model People {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   name        String
-  email       String   @unique
+  email       String    @unique
   phone       String?
   department  String?
   position    String?
-  status      String   @default("Active") // "Active", "On Leave", "Inactive"
+  status      String    @default("Active")
   hireDate    DateTime?
-  performance String?  // "Excellent", "Good", "Average", "Poor"
-  type        String   // "staff" or "customer"
-  company     String?  // For customers
-  address     String?  // For customers
+  performance String?
+  type        String
+  company     String?
+  address     String?
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum Status {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
 }

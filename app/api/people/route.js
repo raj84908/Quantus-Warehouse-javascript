@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
-
-// In-memory storage (starts empty - replace with your database)
-let people = []
-let nextId = 1
+import { prisma } from '@/lib/prisma'
 
 // GET /api/people - Get all people
 export async function GET(request) {
     try {
+        const people = await prisma.people.findMany({
+            orderBy: { createdAt: 'desc' }
+        })
         return NextResponse.json(people)
     } catch (error) {
+        console.error('Error fetching people:', error)
         return NextResponse.json({ error: 'Failed to fetch people' }, { status: 500 })
     }
 }
@@ -24,20 +25,37 @@ export async function POST(request) {
         }
 
         // Check if email already exists
-        if (people.find(person => person.email === data.email)) {
+        const existingPerson = await prisma.people.findUnique({
+            where: { email: data.email }
+        })
+
+        if (existingPerson) {
             return NextResponse.json({ error: 'Email already exists' }, { status: 400 })
         }
 
-        const newPerson = {
-            id: nextId++,
-            ...data,
-            hireDate: data.hireDate || null,
-            createdAt: new Date().toISOString()
-        }
+        // Create new person record in database
+        const newPerson = await prisma.people.create({
+            data: {
+                name: data.name,
+                email: data.email,
+                phone: data.phone || null,
+                department: data.department || null,
+                position: data.position || null,
+                status: data.status || 'Active',
+                hireDate: data.hireDate ? new Date(data.hireDate) : null,
+                performance: data.performance || null,
+                type: data.type || 'staff',
+                company: data.company || null,
+                address: data.address || null,
+                notes: data.notes || null,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }
+        })
 
-        people.push(newPerson)
         return NextResponse.json(newPerson, { status: 201 })
     } catch (error) {
+        console.error('Error creating person:', error)
         return NextResponse.json({ error: 'Failed to create person' }, { status: 500 })
     }
 }

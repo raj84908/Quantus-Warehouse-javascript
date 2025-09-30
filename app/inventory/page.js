@@ -57,7 +57,7 @@ export default function InventoryPage() {
 
     const filteredInventoryItems = useMemo(() => {
         let filtered = inventoryItems;
-
+ 
         // Apply search filter
         if (debouncedSearchTerm) {
             filtered = filtered.filter(item =>
