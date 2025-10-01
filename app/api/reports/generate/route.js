@@ -37,28 +37,23 @@ export async function POST(request) {
                 return NextResponse.json({ error: 'Invalid report type' }, { status: 400 })
         }
 
-        // Generate the actual report file
         const reportContent = generateReportHTML(reportData, reportName, timeRange)
-
-        // Create reports directory if it doesn't exist
         const reportsDir = path.join(process.cwd(), 'public', 'reports')
+
         if (!fs.existsSync(reportsDir)) {
             fs.mkdirSync(reportsDir, { recursive: true })
         }
 
-        // Save report to file
-        const fileExtension = format === 'PDF' ? 'html' : format.toLowerCase() // Still HTML for now
+        const fileExtension = format === 'PDF' ? 'html' : format.toLowerCase()
         const fileName = `${reportName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.${fileExtension}`
         const filePath = path.join(reportsDir, fileName)
         const publicPath = `/reports/${fileName}`
 
         fs.writeFileSync(filePath, reportContent)
 
-        // Get file size
         const stats = fs.statSync(filePath)
         const fileSize = stats.size
 
-        // Save report record to database
         const report = await prisma.report.create({
             data: {
                 name: reportName,
@@ -71,7 +66,6 @@ export async function POST(request) {
             }
         })
 
-        // Return the HTML content as PDF-like response
         return new NextResponse(reportContent, {
             headers: {
                 'Content-Type': 'text/html',
@@ -81,8 +75,14 @@ export async function POST(request) {
 
     } catch (error) {
         console.error('Error generating report:', error)
+        if (error.stack) {
+            console.error(error.stack)
+        }
         return NextResponse.json(
-            { error: 'Failed to generate report' },
+            {
+                error: 'Failed to generate report',
+                message: error.message || 'Unknown error'
+            },
             { status: 500 }
         )
     }

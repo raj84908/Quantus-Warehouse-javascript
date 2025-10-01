@@ -73,7 +73,9 @@ function ReportsPage() {
         // Refresh the reports list
         fetchReportsData()
       } else {
-        console.error('Failed to generate report')
+        // Log status and detailed server error message
+        const errorText = await response.text()
+        console.error('Failed to generate report:', response.status, errorText)
       }
     } catch (error) {
       console.error('Error generating report:', error)
@@ -81,6 +83,7 @@ function ReportsPage() {
       setGenerating(false)
     }
   }
+
 
   const downloadReport = async (reportId) => {
     try {
