@@ -107,6 +107,7 @@ model Profile {
   employeeId String   @unique
   joinDate   DateTime
   avatar     String?
+  password   String?  // Add this line
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
