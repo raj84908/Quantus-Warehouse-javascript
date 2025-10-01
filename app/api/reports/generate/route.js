@@ -6,87 +6,58 @@ import path from 'path'
 // POST generate report
 export async function POST(request) {
     try {
-        const { type, timeRange, format } = await request.json()
-        const days = parseInt(timeRange)
+        const { type, timeRange, format } = await request.json();
+        const days = parseInt(timeRange);
 
-        const startDate = new Date()
-        startDate.setDate(startDate.getDate() - days)
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
 
-        let reportData = {}
-        let reportName = type
-        let category = getReportCategory(type)
+        let reportData = {};
+        let reportName = type;
+        let category = getReportCategory(type);
 
-        // Generate different reports based on type
         switch (type) {
             case 'Inventory Summary':
-                reportData = await generateInventoryReport(startDate)
-                break
+                reportData = await generateInventoryReport(startDate);
+                break;
             case 'Sales Performance':
-                reportData = await generateSalesReport(startDate)
-                break
+                reportData = await generateSalesReport(startDate);
+                break;
             case 'Order Fulfillment':
-                reportData = await generateOrderReport(startDate)
-                break
+                reportData = await generateOrderReport(startDate);
+                break;
             case 'Low Stock Alert':
-                reportData = await generateLowStockReport()
-                break
+                reportData = await generateLowStockReport();
+                break;
             case 'Financial Summary':
-                reportData = await generateFinancialReport(startDate)
-                break
+                reportData = await generateFinancialReport(startDate);
+                break;
             default:
-                return NextResponse.json({ error: 'Invalid report type' }, { status: 400 })
+                return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
         }
 
-        const reportContent = generateReportHTML(reportData, reportName, timeRange)
-        const reportsDir = path.join(process.cwd(), 'public', 'reports')
-
-        if (!fs.existsSync(reportsDir)) {
-            fs.mkdirSync(reportsDir, { recursive: true })
-        }
-
-        const fileExtension = format === 'PDF' ? 'html' : format.toLowerCase()
-        const fileName = `${reportName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.${fileExtension}`
-        const filePath = path.join(reportsDir, fileName)
-        const publicPath = `/reports/${fileName}`
-
-        fs.writeFileSync(filePath, reportContent)
-
-        const stats = fs.statSync(filePath)
-        const fileSize = stats.size
-
-        const report = await prisma.report.create({
-            data: {
-                name: reportName,
-                description: getReportDescription(type),
-                category,
-                format,
-                filePath: publicPath,
-                size: fileSize,
-                timeRange
-            }
-        })
+        const reportContent = generateReportHTML(reportData, reportName, timeRange);
+        const fileName = `${reportName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.html`;
 
         return new NextResponse(reportContent, {
             headers: {
                 'Content-Type': 'text/html',
                 'Content-Disposition': `attachment; filename="${fileName}"`
             }
-        })
+        });
 
     } catch (error) {
-        console.error('Error generating report:', error)
-        if (error.stack) {
-            console.error(error.stack)
-        }
+        console.error('Error generating report:', error);
         return NextResponse.json(
             {
                 error: 'Failed to generate report',
                 message: error.message || 'Unknown error'
             },
             { status: 500 }
-        )
+        );
     }
 }
+
 
 // Helper functions
 function getReportCategory(type) {
