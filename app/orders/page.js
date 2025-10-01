@@ -454,9 +454,12 @@ export default function OrdersPage() {
 
   const handleCreateInvoice = async () => {
     try {
-      // Create new order object
+      // Generate the invoice number before using it
+      const tempInvoiceNumber = `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+
+      // Create new order object using tempInvoiceNumber
       const newOrder = {
-        orderId: invoiceNumber.replace('INV', 'ORD'),
+        orderId: tempInvoiceNumber.replace('INV', 'ORD'),
         customer: customerInfo.companyName,
         email: customerInfo.email,
         phone: customerInfo.phone,
@@ -477,7 +480,7 @@ export default function OrdersPage() {
         adjustedBy: "User"
       };
 
-      console.log('Sending order data:', newOrder); // Debug log
+      console.log('Sending order data:', newOrder);
 
       // Save to database FIRST
       const response = await fetch('/api/orders', {
@@ -488,7 +491,7 @@ export default function OrdersPage() {
         body: JSON.stringify(newOrder),
       });
 
-      console.log('Response status:', response.status); // Debug log
+      console.log('Response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -497,7 +500,7 @@ export default function OrdersPage() {
       }
 
       const savedOrder = await response.json();
-      console.log('Saved order:', savedOrder); // Debug log
+      console.log('Saved order:', savedOrder);
 
       // Generate PDF AFTER successful save
       const invoiceNumber = await generateInvoicePDF(savedOrder, savedOrder.items, false, logoData);
@@ -523,6 +526,8 @@ export default function OrdersPage() {
       alert(`Error creating invoice: ${error.message}`);
     }
   };
+
+
 
   // Function to generate PDF from existing order
   const generateOrderInvoice = async (order) => {
