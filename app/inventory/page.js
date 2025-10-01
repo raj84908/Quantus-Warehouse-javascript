@@ -51,7 +51,7 @@ export default function InventoryPage() {
     });
 
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const API_BASE = '';
     const [editItem, setEditItem] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
 

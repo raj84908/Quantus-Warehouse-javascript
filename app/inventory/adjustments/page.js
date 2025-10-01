@@ -10,7 +10,7 @@ import { Search, Filter, Calendar, ArrowLeft, Download } from "lucide-react";
 import Link from "next/link";
 
 export default function StockAdjustmentsPage() {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const API_BASE = '';
     const [adjustments, setAdjustments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [initialLoad, setInitialLoad] = useState(true);

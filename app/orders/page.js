@@ -34,7 +34,7 @@ export default function OrdersPage() {
   const [orderManager, setOrderManager] = useState(null);
   const [activeTab, setActiveTab] = useState("all") // all, processing, completed
   const [logoData, setLogoData] = useState(null); // Add state for logo
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_BASE = '';
   const [orders, setOrders] = useState([
     {
       orderId: "ORD-12847",

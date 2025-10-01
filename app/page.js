@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [recentOrders, setRecentOrders] = useState([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(true);
   const [ordersToday, setOrdersToday] = useState(0);
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_BASE = '';
   // Fetch recent stock adjustments when component mounts
   useEffect(() => {
     fetchRecentActivity();
