@@ -98,7 +98,7 @@ export async function POST(req) {
             }
         }
 
-        return NextResponse.json({ order }, { status: 201 });
+        return NextResponse.json( order, { status: 201 });
     } catch (error) {
         console.error("Error creating order:", error);
         return NextResponse.json(

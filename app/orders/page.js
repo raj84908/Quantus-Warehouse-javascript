@@ -494,7 +494,7 @@ export default function OrdersPage() {
       const savedOrder = await response.json();
 
       // Update orders state with the saved order from the database
-      setOrders(prevOrders => [savedOrder.order, ...prevOrders]);
+      setOrders(prevOrders => [savedOrder, ...prevOrders]);
 
       // Reset form
       setInvoiceItems([]);
