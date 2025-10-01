@@ -454,9 +454,6 @@ export default function OrdersPage() {
 
   const handleCreateInvoice = async () => {
     try {
-      // Generate PDF and get invoice number
-      const invoiceNumber = await generateInvoicePDF(null, invoiceItems, true, logoData);
-
       // Create new order object
       const newOrder = {
         orderId: invoiceNumber.replace('INV', 'ORD'),
@@ -475,12 +472,14 @@ export default function OrdersPage() {
         total: calculateTotal(),
         status: "Processing",
         priority: "Medium",
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(), // 7 days from now
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
         assignedTo: "System",
-        adjustedBy: "User" // Or the logged-in username if you have authentication
+        adjustedBy: "User"
       };
 
-      // Save to database
+      console.log('Sending order data:', newOrder); // Debug log
+
+      // Save to database FIRST
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: {
@@ -489,11 +488,21 @@ export default function OrdersPage() {
         body: JSON.stringify(newOrder),
       });
 
-      if (!response.ok) throw new Error('Failed to save order');
+      console.log('Response status:', response.status); // Debug log
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+        throw new Error(`Failed to save order: ${errorText}`);
+      }
 
       const savedOrder = await response.json();
+      console.log('Saved order:', savedOrder); // Debug log
 
-      // Update orders state with the saved order from the database
+      // Generate PDF AFTER successful save
+      const invoiceNumber = await generateInvoicePDF(savedOrder, savedOrder.items, false, logoData);
+
+      // Update orders state
       setOrders(prevOrders => [savedOrder, ...prevOrders]);
 
       // Reset form
@@ -511,7 +520,7 @@ export default function OrdersPage() {
 
     } catch (error) {
       console.error("Error creating invoice:", error);
-      alert("Error creating invoice. Please try again.");
+      alert(`Error creating invoice: ${error.message}`);
     }
   };
 
