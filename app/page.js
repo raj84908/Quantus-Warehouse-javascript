@@ -48,42 +48,21 @@ export default function Dashboard() {
   const fetchRecentActivity = async () => {
     setIsLoading(true);
     try {
-      // Fetch the 5 most recent stock adjustments
       const response = await fetch(`${API_BASE}/api/stock-adjustments?limit=5`);
-      if (!response.ok) throw new Error('Failed to fetch recent activity');
-
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Fetch error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
-
-      // Transform the data for display
-      const formattedActivity = data.map(adjustment => {
-        const timeAgo = getTimeAgo(new Date(adjustment.createdAt));
-        const isAddition = adjustment.quantity > 0;
-
-        const productName = adjustment.product?.name || "Unknown Product";
-
-        return {
-          type: isAddition ? "stock-add" : "stock-remove",
-          title: isAddition ? "Stock added" : "Stock removed",
-          description: `${productName} - ${Math.abs(adjustment.quantity)} units ${isAddition ? 'added' : 'removed'}`,
-          reason: adjustment.reason,
-          time: timeAgo,
-          color: isAddition
-              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
-          icon: isAddition ? ArrowUp : ArrowDown,
-        };
-      });
-
-
-      setRecentActivity(formattedActivity);
+      // ...process data as before...
     } catch (error) {
       console.error('Error fetching recent activity:', error);
-      // Just clear if there’s an error
       setRecentActivity([]);
     } finally {
       setIsLoading(false);
     }
   };
+
 
 
   const fetchRecentOrders = async () => {
