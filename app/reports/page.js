@@ -26,10 +26,13 @@ function ReportsPage() {
         fetch(`/api/reports/recent`)
       ])
 
-      const [statsData, reportsListData] = await Promise.all([
-        statsRes.json(),
-        reportsRes.json()
-      ])
+      const statsText = await statsRes.text()
+      const reportsText = await reportsRes.text()
+      console.log('Stats raw =>', statsText)
+      console.log('Reports raw =>', reportsText)
+
+      const statsData = JSON.parse(statsText)
+      const reportsListData = JSON.parse(reportsText)
 
       setReportsData(statsData)
       setRecentReports(reportsListData)
@@ -39,6 +42,7 @@ function ReportsPage() {
       setLoading(false)
     }
   }
+
 
   const generateReport = async (type) => {
     setGenerating(true)
