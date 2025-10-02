@@ -41,14 +41,6 @@ export async function GET(request) {
 
             const dayRevenue = orderItems.reduce((total, item) => total + item.price * item.quantity, 0)
             
-            if (dayRevenue > 0) {
-                console.log('Order items for this day:', orderItems.map(item => ({
-                    price: item.price,
-                    quantity: item.quantity,
-                    total: item.price * item.quantity
-                })))
-            }
-            
             salesData.push({
                 date: displayDate,
                 revenue: dayRevenue,

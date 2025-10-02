@@ -50,11 +50,25 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/stock-adjustments?limit=5`);
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Fetch error ${response.status}: ${errorText}`);
+        throw new Error('Failed to fetch recent activity');
       }
       const data = await response.json();
-      // ...process data as before...
+
+      // Format the stock adjustments for display
+      const formattedActivity = data.map(adjustment => {
+        const isIncrease = adjustment.quantity > 0;
+        return {
+          title: adjustment.product?.name || 'Unknown Product',
+          description: `${isIncrease ? 'Added' : 'Removed'} ${Math.abs(adjustment.quantity)} units`,
+          reason: adjustment.reason,
+          color: isIncrease
+              ? 'bg-green-500 text-green-500 dark:bg-green-500 dark:text-green-500'
+              : 'bg-red-500 text-red-500 dark:bg-red-500 dark:text-red-500',
+          time: getTimeAgo(new Date(adjustment.createdAt))
+        };
+      });
+
+      setRecentActivity(formattedActivity);
     } catch (error) {
       console.error('Error fetching recent activity:', error);
       setRecentActivity([]);
