@@ -248,10 +248,25 @@ export default function InventoryPage() {
     };
 
     const updateStockAdjustmentItem = (id, field, value) => {
-        setStockAdjustmentItems(stockAdjustmentItems.map(item =>
-            item.id === id ? { ...item, [field]: value } : item
-        ));
+        setStockAdjustmentItems(stockAdjustmentItems.map(item => {
+            if (item.id === id) {
+                if (field === "adjustment" || field === "adjustmentType") {
+                    const adjustmentType = field === "adjustmentType" ? value : item.adjustmentType;
+                    const adjustmentVal = field === "adjustment" ? Number(value) : item.adjustment;
+
+                    // If deducting, ensure adjustmentVal <= currentStock
+                    if (adjustmentType === "deduct" && adjustmentVal > item.currentStock) {
+                        alert(`Cannot deduct more than available stock (${item.currentStock}) for ${item.name}`);
+                        return item; // Disallow excess deduction
+                    }
+                }
+                // Update field normally if valid
+                return { ...item, [field]: value };
+            }
+            return item;
+        }));
     };
+
 
     const calculateNewStock = (item) => {
         if (item.adjustmentType === 'add') {
@@ -261,6 +276,9 @@ export default function InventoryPage() {
         }
     };
 
+    const hasInvalidDeduction = stockAdjustmentItems.some(
+        item => item.adjustmentType === 'deduct' && item.adjustment > item.currentStock
+    );
     const handleStockAdjustment = async () => {
         try {
             // Process each item
@@ -606,7 +624,7 @@ export default function InventoryPage() {
                                     </Button>
                                     <Button
                                         onClick={handleStockAdjustment}
-                                        disabled={stockAdjustmentItems.length === 0 || !adjustmentReason || stockAdjustmentItems.every(item => item.adjustment === 0)}
+                                        disabled={stockAdjustmentItems.length === 0 || !adjustmentReason || stockAdjustmentItems.every(item => item.adjustment === 0) || hasInvalidDeduction}
                                         className="px-8 py-3"
                                     >
                                         <Clipboard className="mr-2 h-4 w-4" />
