@@ -40,17 +40,13 @@ export default function AnalyticsPage() {
   const [salesTrend, setSalesTrend] = useState([])
   const [loading, setLoading] = useState(true)
   const [isChartExpanded, setIsChartExpanded] = useState(false)
-  
-  
-  
+
   useEffect(() => {
     fetchAnalyticsData()
   }, [timeRange])
   const fetchAnalyticsData = async () => {
     setLoading(true)
     try {
-      console.log('Fetching data with timeRange:', timeRange)
-
       const [analyticsRes, topProductsRes, performanceRes, insightsRes, salesTrendRes] = await Promise.all([
         fetch(`/api/analytics?timeRange=${timeRange}`),
         fetch(`/api/analytics/top-products?timeRange=${timeRange}`),
@@ -58,14 +54,6 @@ export default function AnalyticsPage() {
         fetch(`/api/analytics/insights`),
         fetch(`/api/analytics/sales-trend?timeRange=${timeRange}`),
       ])
-
-      console.log('Component rendering with salesTrend:', {
-        length: salesTrend.length,
-        firstItem: salesTrend[0],
-        lastItem: salesTrend[salesTrend.length - 1],
-        allDates: salesTrend.map(item => item.date),
-        allRevenues: salesTrend.map(item => item.revenue)
-      })
 
       const [analyticsData, topProductsData, performanceData, insightsData, salesTrendData] = await Promise.all([
         analyticsRes.json(),
@@ -75,33 +63,17 @@ export default function AnalyticsPage() {
         salesTrendRes.json(),
       ])
 
-      console.log('Received salesTrendData:', salesTrendData)
-      // Add this right after the "Received salesTrendData" log
-      console.log('First 5 items:', salesTrendData.slice(0, 5))
-      console.log('Last 5 items:', salesTrendData.slice(-5))
-
-      // Process the salesTrendData before setting state
-      const processedSalesTrend = Array.isArray(salesTrendData) ? salesTrendData : []
-
-      // Now do your calculations with the actual data
-      console.log("Total Revenue sum:", processedSalesTrend.reduce((sum, d) => sum + d.revenue, 0))
-      console.log("Peak Revenue max:", Math.max(...processedSalesTrend.map(d => d.revenue)))
-      console.log("analytics revenue:", analyticsData?.revenue?.value)
-
-      // Set all state at once
       setAnalytics(analyticsData)
       setTopProducts(Array.isArray(topProductsData) ? topProductsData : [])
       setPerformanceMetrics(Array.isArray(performanceData) ? performanceData : [])
       setInsights(Array.isArray(insightsData) ? insightsData : [])
-      setSalesTrend(processedSalesTrend)
-
+      setSalesTrend(Array.isArray(salesTrendData) ? salesTrendData : [])
     } catch (error) {
       console.error("Failed to fetch analytics data:", error)
     } finally {
       setLoading(false)
     }
   }
-  
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat("en-US", {
@@ -119,10 +91,6 @@ export default function AnalyticsPage() {
       return `$${(value / 1000).toFixed(1)}K`
     }
     return formatCurrency(value)
-  }
-
-  const formatPercentage = (value) => {
-    return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`
   }
 
   const getSeverityIcon = (severity) => {
@@ -148,7 +116,6 @@ export default function AnalyticsPage() {
     const padding = (max - min) * 0.1 // 10% padding
     return [Math.max(0, min - padding), max + padding]
   }
-
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -182,34 +149,26 @@ export default function AnalyticsPage() {
     )
   }
 
+  // Stats cards: REMOVED percent change and "from last period"
   const stats = [
     {
       title: "Revenue",
       value: formatCurrency(analytics?.revenue?.value || 0),
-      change: formatPercentage(analytics?.revenue?.change || 0),
-      changeText: "from last period",
       icon: DollarSign,
     },
     {
       title: "Orders Processed",
       value: analytics?.orders?.value?.toString() || "0",
-      change: formatPercentage(analytics?.orders?.change || 0),
-      changeText: "from last period",
       icon: ShoppingCart,
     },
     {
       title: "Inventory Activity",
       value: `${analytics?.inventoryTurnover?.value?.toFixed(1) || 0}x`,
-      change: formatPercentage(analytics?.inventoryTurnover?.change || 0),
-      changeText: "from last period",
       icon: RotateCcw,
-      changeColor: analytics?.inventoryTurnover?.change < 0 ? "text-red-600" : undefined,
     },
     {
       title: "Order Completion Rate",
       value: `${analytics?.customerSatisfaction?.value?.toFixed(1) || 0}%`,
-      change: formatPercentage(analytics?.customerSatisfaction?.change || 0),
-      changeText: "from last period",
       icon: Users,
     },
   ]
@@ -237,6 +196,7 @@ export default function AnalyticsPage() {
             </Select>
           </div>
 
+          {/* Overview cards - NO percentages */}
           <div className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Analytics Overview</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -250,16 +210,7 @@ export default function AnalyticsPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">
-                      <span
-                          className={
-                              stat.changeColor || (stat.change.startsWith("+") ? "text-green-600" : "text-red-600")
-                          }
-                      >
-                        {stat.change}
-                      </span>{" "}
-                          {stat.changeText}
-                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">&nbsp;</p>
                       </CardContent>
                     </Card>
                 )
@@ -267,11 +218,8 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Enhanced Sales Trend Chart */}
-          {/* Enhanced Sales Trend Chart - Back to original styling */}
-          <div
-              className={`mb-8 ${isChartExpanded ? "fixed inset-4 z-50 bg-white dark:bg-gray-900 rounded-lg shadow-2xl" : ""}`}
-          >
+          {/* Sales Trend Chart and only three summary metrics */}
+          <div className={`mb-8 ${isChartExpanded ? "fixed inset-4 z-50 bg-white dark:bg-gray-900 rounded-lg shadow-2xl" : ""}`}>
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -302,12 +250,7 @@ export default function AnalyticsPage() {
                           <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="#e5e7eb"
-                          strokeOpacity={0.5}
-                          className="dark:stroke-gray-600"
-                      />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.5} className="dark:stroke-gray-600" />
                       <XAxis
                           dataKey="date"
                           tick={{ fontSize: 12, fill: "#6b7280" }}
@@ -348,7 +291,7 @@ export default function AnalyticsPage() {
                   </ResponsiveContainer>
                 </div>
 
-                {/* Additional metrics below chart */}
+                {/* Only three summary metrics below chart */}
                 <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -375,7 +318,7 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
-          {/* Enhanced Top Products Performance Section */}
+          {/* Top Products Performance, with "Estimated Revenue" and "Avg. Growth" REMOVED */}
           <div className="mb-8">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader className="flex flex-row items-center justify-between">
@@ -406,8 +349,7 @@ export default function AnalyticsPage() {
                           name: product.name.length > 12 ? product.name.substring(0, 12) + "..." : product.name,
                           fullName: product.name,
                           units: Number.parseInt(product.units.split(" ")[0]),
-                          revenue: product.revenue, // Mock revenue data
-                          change: Number.parseFloat(product.change.replace("%", "").replace("+", "")),
+                          revenue: product.revenue,
                         }))}
                         margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
                     >
@@ -446,13 +388,6 @@ export default function AnalyticsPage() {
                                     <p className="text-sm text-green-600 dark:text-green-400">
                                       Revenue: <span className="font-semibold">{formatCurrency(data.revenue)}</span>
                                     </p>
-                                    <p className={`text-sm ${data.change >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                      Change:{" "}
-                                      <span className="font-semibold">
-                                  {data.change > 0 ? "+" : ""}
-                                        {data.change}%
-                                </span>
-                                    </p>
                                   </div>
                               )
                             }
@@ -471,74 +406,7 @@ export default function AnalyticsPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-
-                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      Detailed Performance Metrics
-                    </h4>
-                  </div>
-                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {topProducts.slice(0, 8).map((product, index) => {
-                      const changeValue = Number.parseFloat(product.change.replace("%", "").replace("+", ""))
-                      const isPositive = changeValue >= 0  // <-- Add this line
-                      return (
-                          <div
-                              key={index}
-                              className="px-4 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-3">
-                                  <div
-                                      className={`w-3 h-3 rounded-full ${index < 3 ? "bg-yellow-400" : "bg-gray-300"}`}
-                                  ></div>
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                      {product.name}
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">Rank #{index + 1}</p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-6 text-sm">
-                                <div className="text-center">
-                                  <p className="font-semibold text-gray-900 dark:text-gray-100">{product.units}</p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">Units</p>
-                                </div>
-
-                                <div className="text-center">
-                                  <p className="font-semibold text-gray-900 dark:text-gray-100">
-                                    {formatCurrency(product.revenue)}
-                                  </p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">Revenue</p>
-                                </div>
-
-                                <div className="text-center">
-                                  <div
-                                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                          isPositive
-                                              ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                                              : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                                      }`}
-                                  >
-                                    {isPositive ? (
-                                        <TrendingUp className="w-3 h-3 mr-1" />
-                                    ) : (
-                                        <Activity className="w-3 h-3 mr-1" />
-                                    )}
-                                    {product.change}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
+                {/* Keep only "Total Units" card */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                   <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -552,39 +420,12 @@ export default function AnalyticsPage() {
                     </p>
                     <p className="text-xs text-blue-700 dark:text-blue-300">Top 8 products combined</p>
                   </div>
-
-                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <DollarSign className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-900 dark:text-green-100">Est. Revenue</span>
-                    </div>
-                    <p className="text-2xl font-bold text-green-900 dark:text-green-100">
-                      {formatCurrency(topProducts.length * 25000)}
-                    </p>
-                    <p className="text-xs text-green-700 dark:text-green-300">From top performers</p>
-                  </div>
-
-                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="h-4 w-4 text-purple-600" />
-                      <span className="text-sm font-medium text-purple-900 dark:text-purple-100">Avg. Growth</span>
-                    </div>
-                    <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                      {(
-                          topProducts.reduce(
-                              (sum, product) => sum + Number.parseFloat(product.change.replace("%", "").replace("+", "")),
-                              0,
-                          ) / topProducts.length
-                      ).toFixed(1)}
-                      %
-                    </p>
-                    <p className="text-xs text-purple-700 dark:text-purple-300">Period over period</p>
-                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
+          {/* Product/Performance/Insights panels unchanged */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
@@ -601,11 +442,6 @@ export default function AnalyticsPage() {
                           <p className="font-medium text-gray-900 dark:text-gray-100">{product.name}</p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">{product.units}</p>
                         </div>
-                        <span
-                            className={`text-sm font-medium ${product.change.startsWith("+") ? "text-green-600" : "text-red-600"}`}
-                        >
-                      {product.change}
-                    </span>
                       </div>
                   ))}
                 </div>
