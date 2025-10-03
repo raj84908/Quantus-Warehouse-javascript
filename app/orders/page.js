@@ -35,6 +35,7 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState("all") // all, processing, completed
   const [logoData, setLogoData] = useState(null); // Add state for logo
   const API_BASE = '';
+  const [allCustomers, setAllCustomers] = useState([]);
   const [orders, setOrders] = useState([
     {
       orderId: "ORD-12847",
@@ -86,6 +87,15 @@ export default function OrdersPage() {
 
     loadLogo();
   }, []);
+
+  useEffect(() => {
+    if (isInvoiceModalOpen) {
+      fetch("/api/people")
+          .then((res) => res.json())
+          .then((all) => setAllCustomers(all.filter((p) => p.type === "customer")))
+          .catch((err) => console.error("Failed loading customers", err))
+    }
+  }, [isInvoiceModalOpen])
 
   const fetchOrders = async () => {
     try {
@@ -653,28 +663,87 @@ export default function OrdersPage() {
                       <div className="space-y-6">
                         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Customer Information</h3>
 
+                        <div className="mb-2 relative">
+                          <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                            Search Saved Customer
+                          </label>
+                          <Input
+                              placeholder="Search company, name, or email"
+                              value={customerInfo._search || ""}
+                              onChange={(e) =>
+                                  setCustomerInfo((prev) => ({
+                                    ...prev,
+                                    _search: e.target.value,
+                                  }))
+                              }
+                              className="h-12"
+                          />
+                          {customerInfo._search && (
+                              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded mt-1 max-h-44 overflow-y-auto shadow z-30 absolute left-0 right-0">
+                                {allCustomers
+                                    .filter(
+                                        (c) =>
+                                            (c.company || "")
+                                                .toLowerCase()
+                                                .includes(customerInfo._search.toLowerCase()) ||
+                                            (c.name || "")
+                                                .toLowerCase()
+                                                .includes(customerInfo._search.toLowerCase()) ||
+                                            (c.email || "").toLowerCase().includes(customerInfo._search.toLowerCase())
+                                    )
+                                    .slice(0, 8)
+                                    .map((customer) => (
+                                        <div
+                                            key={customer.id}
+                                            className="px-4 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900 transition text-gray-900 dark:text-gray-100"
+                                            onClick={() => {
+                                              setCustomerInfo({
+                                                companyName: customer.company || customer.name,
+                                                contactPerson: customer.name,
+                                                email: customer.email || "",
+                                                phone: customer.phone || "",
+                                                billingAddress: customer.address || "",
+                                                _search: "",
+                                              })
+                                            }}
+                                        >
+                                          <div className="font-semibold">{customer.company || customer.name}</div>
+                                          <div className="text-xs text-gray-500">
+                                            {customer.email}
+                                            {customer.phone ? ` • ${customer.phone}` : ""}
+                                          </div>
+                                        </div>
+                                    ))}
+                                {allCustomers.filter(
+                                    (c) =>
+                                        (c.company || "").toLowerCase().includes(customerInfo._search.toLowerCase()) ||
+                                        (c.name || "").toLowerCase().includes(customerInfo._search.toLowerCase()) ||
+                                        (c.email || "").toLowerCase().includes(customerInfo._search.toLowerCase())
+                                ).length === 0 && (
+                                    <div className="px-4 py-2 text-gray-400 text-xs">No matches</div>
+                                )}
+                              </div>
+                          )}
+                        </div>
+
                         <div className="space-y-4">
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                Company Name *
-                              </label>
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Company Name *</label>
                               <Input
                                   placeholder="Enter company name"
                                   value={customerInfo.companyName}
-                                  onChange={(e) => updateCustomerInfo('companyName', e.target.value)}
+                                  onChange={(e) => updateCustomerInfo("companyName", e.target.value)}
                                   className="h-12"
                                   required
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                Contact Person
-                              </label>
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Contact Person</label>
                               <Input
                                   placeholder="Enter contact name"
                                   value={customerInfo.contactPerson}
-                                  onChange={(e) => updateCustomerInfo('contactPerson', e.target.value)}
+                                  onChange={(e) => updateCustomerInfo("contactPerson", e.target.value)}
                                   className="h-12"
                               />
                             </div>
@@ -682,39 +751,33 @@ export default function OrdersPage() {
 
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                Email Address *
-                              </label>
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Email Address *</label>
                               <Input
                                   type="email"
                                   placeholder="Enter email address"
                                   value={customerInfo.email}
-                                  onChange={(e) => updateCustomerInfo('email', e.target.value)}
+                                  onChange={(e) => updateCustomerInfo("email", e.target.value)}
                                   className="h-12"
                                   required
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                Phone Number
-                              </label>
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Phone Number</label>
                               <Input
                                   placeholder="Enter phone number"
                                   value={customerInfo.phone}
-                                  onChange={(e) => updateCustomerInfo('phone', e.target.value)}
+                                  onChange={(e) => updateCustomerInfo("phone", e.target.value)}
                                   className="h-12"
                               />
                             </div>
                           </div>
 
                           <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              Billing Address
-                            </label>
+                            <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Billing Address</label>
                             <textarea
                                 placeholder="Enter billing address"
                                 value={customerInfo.billingAddress}
-                                onChange={(e) => updateCustomerInfo('billingAddress', e.target.value)}
+                                onChange={(e) => updateCustomerInfo("billingAddress", e.target.value)}
                                 rows={4}
                                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100 resize-none"
                             />
