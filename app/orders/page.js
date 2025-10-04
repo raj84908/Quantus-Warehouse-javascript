@@ -28,7 +28,6 @@ import {useInventoryStats} from "../../hooks/InventoryStats";
 import Orders from "./classes/OrdersManager";
 
 export default function OrdersPage() {
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false)
   const [invoiceItems, setInvoiceItems] = useState([])
   const [productSearch, setProductSearch] = useState("")
   const [orderManager, setOrderManager] = useState(null);
@@ -36,6 +35,16 @@ export default function OrdersPage() {
   const [logoData, setLogoData] = useState(null); // Add state for logo
   const API_BASE = '';
   const [allCustomers, setAllCustomers] = useState([]);
+  const [partialPayments, setPartialPayments] = useState([])
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false)
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState(null)
+  const [newPartialPaymentAmount, setNewPartialPaymentAmount] = useState("")
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingOrder, setEditingOrder] = useState(null)
+  const [editOrderItems, setEditOrderItems] = useState([])
+  const [editCustomerInfo, setEditCustomerInfo] = useState({})
   const [orders, setOrders] = useState([
     {
       orderId: "ORD-12847",
@@ -224,6 +233,96 @@ export default function OrdersPage() {
     }
   }
 
+  const openEditModal = async (order) => {
+    setEditingOrder(order)
+    setEditOrderItems([...order.items])
+    setEditCustomerInfo({
+      companyName: order.customer,
+      email: order.email,
+      phone: order.phone,
+      billingAddress: order.billingAddress
+    })
+    setIsEditModalOpen(true)
+    // Fetch partial payments for this order
+    await fetchPartialPayments(order.id)
+  }
+
+  const updateEditOrderItem = (id, field, value) => {
+    setEditOrderItems(editOrderItems.map(item =>
+        item.id === id ? { ...item, [field]: value } : item
+    ))
+  }
+
+  const removeEditOrderItem = (id) => {
+    setEditOrderItems(editOrderItems.filter(item => item.id !== id))
+  }
+
+  const addProductToEditOrder = (product) => {
+    const newItem = {
+      id: Date.now(),
+      sku: product.sku,
+      name: product.name,
+      price: product.value,
+      quantity: 1,
+      productId: product.id
+    }
+    setEditOrderItems([...editOrderItems, newItem])
+  }
+
+  const deletePartialPayment = async (paymentId) => {
+    if (!confirm('Delete this payment?')) return
+
+    try {
+      const response = await fetch(`/api/orders/${editingOrder.id}/partial-payments/${paymentId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete payment')
+
+      setPartialPayments(partialPayments.filter(p => p.id !== paymentId))
+      alert('Payment deleted')
+    } catch (error) {
+      console.error('Error deleting payment:', error)
+      alert('Failed to delete payment')
+    }
+  }
+
+  const handleUpdateOrder = async () => {
+    try {
+      const updatedOrder = {
+        customer: editCustomerInfo.companyName,
+        email: editCustomerInfo.email,
+        phone: editCustomerInfo.phone,
+        billingAddress: editCustomerInfo.billingAddress,
+        items: editOrderItems.map(item => ({
+          id: item.id,
+          sku: item.sku,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          productId: item.productId
+        })),
+        subtotal: editOrderItems.reduce((sum, item) => sum + (item.quantity * item.price), 0),
+        total: editOrderItems.reduce((sum, item) => sum + (item.quantity * item.price), 0)
+      }
+
+      const response = await fetch(`/api/orders/${editingOrder.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedOrder)
+      })
+
+      if (!response.ok) throw new Error('Failed to update order')
+
+      const savedOrder = await response.json()
+      setOrders(orders.map(o => o.id === savedOrder.id ? savedOrder : o))
+      setIsEditModalOpen(false)
+      alert('Order updated successfully!')
+    } catch (error) {
+      console.error('Error updating order:', error)
+      alert('Failed to update order')
+    }
+  }
   const removeItemFromInvoice = (id) => {
     setInvoiceItems(invoiceItems.filter(item => item.id !== id))
   }
@@ -247,8 +346,13 @@ export default function OrdersPage() {
   }
 
   const calculateTotal = (items = invoiceItems) => {
-    const subtotal = calculateSubtotal(items)
-    return subtotal;
+    return calculateSubtotal(items)
+  }
+
+  const openPaymentModal = (order) => {
+    setSelectedOrderForPayment(order)
+    setIsPaymentModalOpen(true)
+    fetchPartialPayments(order.id)
   }
 
   // Toggle order status between Processing and Completed
@@ -287,7 +391,7 @@ export default function OrdersPage() {
   };
 
   // Simplified PDF Generation Function - expects base64 logo data
-  const generateInvoicePDF = (orderData, items, isNewInvoice = false, logoBase64) => {
+  const generateInvoicePDF = (orderData, items, isNewInvoice = false, logoBase64, totalPaid = 0) => {
     return new Promise((resolve, reject) => {
       const script = document.createElement('script')
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
@@ -387,6 +491,7 @@ export default function OrdersPage() {
             // === TOTALS ===
             const subtotal = calculateSubtotal(items)
             const total = calculateTotal(items)
+            const balanceDue = total - totalPaid
 
             let finalY = doc.lastAutoTable.finalY + 10
 
@@ -397,33 +502,20 @@ export default function OrdersPage() {
             doc.text("TOTAL:", 145, finalY + 10)
             doc.text(`$${total.toFixed(2)}`, 180, finalY + 10)
 
+            // Show actual paid amount
+            doc.setTextColor(0, 128, 0) // Green for paid
             doc.text("PAID:", 145, finalY + 20)
-            doc.text("$0.00", 180, finalY + 20)
+            doc.text(`$${totalPaid.toFixed(2)}`, 180, finalY + 20)
+            doc.setTextColor(0, 0, 0) // Reset to black
 
-            doc.setTextColor(255, 0, 0)
+            // Show balance due
+            doc.setTextColor(255, 0, 0) // Red for balance
             doc.text("BALANCE DUE:", 145, finalY + 35)
-            doc.text(`$${total.toFixed(2)}`, 180, finalY + 35)
-            doc.setTextColor(0, 0, 0)
+            doc.text(`$${balanceDue.toFixed(2)}`, 180, finalY + 35)
+            doc.setTextColor(0, 0, 0) // Reset to black
 
-            // === PAYMENT INSTRUCTIONS ===
-            doc.setFont("helvetica", "bold")
-            doc.text("Payment Instructions", 15, finalY + 55)
+            // ... (rest of your payment instructions code stays the same)
 
-            doc.setFontSize(9)
-            doc.setFont("helvetica", "normal")
-            const paymentInstructions = [
-              "Note: We now accept card payments via Stripe.",
-              "A 4% processing fee will be added to credit card transactions.",
-              "To avoid the fee, you may pay via",
-              "- Check",
-              "- Zelle Payments to: DSFRAGRANCE85@GMAIL.COM or (478)407-9793",
-              "Note: If you prefer wire transfer, contact us for instructions."
-            ]
-            paymentInstructions.forEach((line, index) => {
-              doc.text(line, 15, finalY + 65 + (index * 5))
-            })
-
-            // Save
             doc.save(`${invoiceNumber}.pdf`)
             resolve(invoiceNumber)
           } catch (error) {
@@ -461,6 +553,70 @@ export default function OrdersPage() {
       alert('Failed to delete order. Please try again.');
     }
   };
+
+  const fetchPartialPayments = async (orderId) => {
+    try {
+      const response = await fetch(`/api/orders/${orderId}/partial-payments`)
+      if (response.ok) {
+        const payments = await response.json()
+        setPartialPayments(payments)
+      }
+    } catch (error) {
+      console.error('Error fetching partial payments:', error)
+    }
+  }
+
+  // Add partial payment
+  const handleAddPartialPayment = async () => {
+    if (!newPartialPaymentAmount || parseFloat(newPartialPaymentAmount) <= 0) {
+      alert("Please enter a valid payment amount")
+      return
+    }
+
+    // Determine which order we're working with
+    const targetOrder = isEditModalOpen ? editingOrder : selectedOrderForPayment
+
+    if (!targetOrder) {
+      alert("No order selected")
+      return
+    }
+
+    const amount = parseFloat(newPartialPaymentAmount)
+    const totalPaid = partialPayments.reduce((sum, p) => sum + p.amount, 0)
+    const balanceDue = targetOrder.total - totalPaid
+
+    if (amount > balanceDue) {
+      alert(`Payment amount ($${amount.toFixed(2)}) exceeds balance due ($${balanceDue.toFixed(2)})`)
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/orders/${targetOrder.id}/partial-payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to add payment')
+      }
+
+      const payment = await response.json()
+      setPartialPayments([payment, ...partialPayments])
+      setNewPartialPaymentAmount("")
+      alert("Payment recorded successfully!")
+    } catch (error) {
+      console.error('Error adding partial payment:', error)
+      alert(`Failed to record payment: ${error.message}`)
+    }
+  }
+
+  // Calculate totals with partial payments
+  const calculateBalanceDue = (order, payments) => {
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
+    return order.total - totalPaid
+  }
 
   const handleCreateInvoice = async () => {
     try {
@@ -513,7 +669,8 @@ export default function OrdersPage() {
       console.log('Saved order:', savedOrder);
 
       // Generate PDF AFTER successful save
-      const invoiceNumber = await generateInvoicePDF(savedOrder, savedOrder.items, false, logoData);
+      // In handleCreateInvoice function, update this line:
+      const invoiceNumber = await generateInvoicePDF(savedOrder, savedOrder.items, false, logoData, 0);
 
       // Update orders state
       setOrders(prevOrders => [savedOrder, ...prevOrders]);
@@ -540,9 +697,19 @@ export default function OrdersPage() {
 
 
   // Function to generate PDF from existing order
+  // Function to generate PDF from existing order
   const generateOrderInvoice = async (order) => {
     try {
-      await generateInvoicePDF(order, order.items, false, logoData)
+      // Fetch partial payments for this order
+      const paymentsResponse = await fetch(`/api/orders/${order.id}/partial-payments`)
+      let totalPaid = 0
+
+      if (paymentsResponse.ok) {
+        const payments = await paymentsResponse.json()
+        totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
+      }
+
+      await generateInvoicePDF(order, order.items, false, logoData, totalPaid)
       alert("Invoice PDF generated successfully!")
     } catch (error) {
       console.error("Error generating invoice:", error)
@@ -568,6 +735,265 @@ export default function OrdersPage() {
             </div>
           </div>
 
+          {/* Partial Payment Modal */}
+
+
+          {/* Partial Payment Modal */}
+          {isPaymentModalOpen && selectedOrderForPayment && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+                  <div className="p-6">
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-bold text-gray-900">Manage Payments</h2>
+                      <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setIsPaymentModalOpen(false)
+                            setPartialPayments([])
+                            setNewPartialPaymentAmount("")
+                          }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Order Summary */}
+                    <div className="bg-gray-50 p-4 rounded-lg mb-6">
+                      <h3 className="font-semibold text-lg mb-2">{selectedOrderForPayment.orderId}</h3>
+                      <p className="text-sm text-gray-600">{selectedOrderForPayment.customer}</p>
+                      <div className="mt-4 space-y-2">
+                        <div className="flex justify-between">
+                          <span className="font-medium">Order Total:</span>
+                          <span className="font-bold">${selectedOrderForPayment.total.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-green-600">
+                          <span className="font-medium">Total Paid:</span>
+                          <span className="font-bold">
+                        ${partialPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
+                      </span>
+                        </div>
+                        <div className="flex justify-between text-red-600 text-lg pt-2 border-t">
+                          <span className="font-bold">Balance Due:</span>
+                          <span className="font-bold">
+                        ${calculateBalanceDue(selectedOrderForPayment, partialPayments).toFixed(2)}
+                      </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Add Payment Form */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium mb-2">Add Partial Payment</label>
+                      <div className="flex space-x-2">
+                        <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Enter amount"
+                            value={newPartialPaymentAmount}
+                            onChange={(e) => setNewPartialPaymentAmount(e.target.value)}
+                            className="flex-1"
+                        />
+                        <Button onClick={handleAddPartialPayment}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Payment
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Payment History */}
+                    <div>
+                      <h3 className="font-semibold mb-3">Payment History</h3>
+                      {partialPayments.length === 0 ? (
+                          <p className="text-sm text-gray-500 text-center py-4">No payments recorded yet</p>
+                      ) : (
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {partialPayments.map((payment) => (
+                                <div key={payment.id} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                                  <div>
+                                    <p className="font-semibold text-green-600">${payment.amount.toFixed(2)}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {new Date(payment.paidAt).toLocaleDateString()} at {new Date(payment.paidAt).toLocaleTimeString()}
+                                    </p>
+                                  </div>
+                                </div>
+                            ))}
+                          </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+          )}
+
+          {/* Edit Order Modal */}
+          {isEditModalOpen && editingOrder && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50 overflow-y-auto">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl max-h-[95vh] overflow-y-auto">
+                  <div className="p-8">
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                        Edit Order: {editingOrder.orderId}
+                      </h2>
+                      <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(false)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-8 mb-8">
+                      {/* LEFT: Product Search */}
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Add Products</h3>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                          <Input
+                              placeholder="Search products..."
+                              value={productSearch}
+                              onChange={(e) => setProductSearch(e.target.value)}
+                              className="pl-10"
+                          />
+                        </div>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {filteredProducts.slice(0, 5).map((product) => (
+                              <Card key={product.sku} className="cursor-pointer hover:shadow-md transition-shadow">
+                                <CardContent className="p-3 flex justify-between items-center">
+                                  <div>
+                                    <p className="font-medium text-sm">{product.name}</p>
+                                    <p className="text-xs text-gray-500">${product.value}</p>
+                                  </div>
+                                  <Button size="sm" onClick={() => addProductToEditOrder(product)}>
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </CardContent>
+                              </Card>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* RIGHT: Customer Info */}
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Customer Information</h3>
+                        <Input
+                            placeholder="Company Name"
+                            value={editCustomerInfo.companyName}
+                            onChange={(e) => setEditCustomerInfo({...editCustomerInfo, companyName: e.target.value})}
+                        />
+                        <Input
+                            placeholder="Email"
+                            value={editCustomerInfo.email}
+                            onChange={(e) => setEditCustomerInfo({...editCustomerInfo, email: e.target.value})}
+                        />
+                        <Input
+                            placeholder="Phone"
+                            value={editCustomerInfo.phone || ''}
+                            onChange={(e) => setEditCustomerInfo({...editCustomerInfo, phone: e.target.value})}
+                        />
+                        <textarea
+                            placeholder="Billing Address"
+                            value={editCustomerInfo.billingAddress || ''}
+                            onChange={(e) => setEditCustomerInfo({...editCustomerInfo, billingAddress: e.target.value})}
+                            rows={3}
+                            className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:text-gray-100"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Order Items */}
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">Order Items</h3>
+                      <table className="w-full">
+                        <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2">Item</th>
+                          <th className="text-left py-2">Qty</th>
+                          <th className="text-left py-2">Price</th>
+                          <th className="text-left py-2">Total</th>
+                          <th className="text-left py-2">Action</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {editOrderItems.map((item) => (
+                            <tr key={item.id} className="border-b">
+                              <td className="py-2">{item.name}</td>
+                              <td className="py-2">
+                                <Input
+                                    type="number"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => updateEditOrderItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                    className="w-20"
+                                />
+                              </td>
+                              <td className="py-2">
+                                <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.price}
+                                    onChange={(e) => updateEditOrderItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                                    className="w-24"
+                                />
+                              </td>
+                              <td className="py-2 font-semibold">${(item.quantity * item.price).toFixed(2)}</td>
+                              <td className="py-2">
+                                <Button size="sm" variant="outline" onClick={() => removeEditOrderItem(item.id)}>
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                      </table>
+                      <div className="flex justify-end mt-4">
+                        <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded">
+                          <p className="text-xl font-bold">
+                            Total: ${editOrderItems.reduce((sum, item) => sum + (item.quantity * item.price), 0).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Partial Payments */}
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">Partial Payments</h3>
+                      {partialPayments.length === 0 ? (
+                          <p className="text-sm text-gray-500">No payments yet</p>
+                      ) : (
+                          <div className="space-y-2">
+                            {partialPayments.map((payment) => (
+                                <div key={payment.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                                  <div>
+                                    <p className="font-semibold text-green-600">${payment.amount.toFixed(2)}</p>
+                                    <p className="text-xs text-gray-500">{new Date(payment.paidAt).toLocaleString()}</p>
+                                  </div>
+                                  <Button size="sm" variant="outline" onClick={() => deletePartialPayment(payment.id)}>
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                            ))}
+                          </div>
+                      )}
+                      <div className="flex space-x-2 mt-3">
+                        <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Add payment amount"
+                            value={newPartialPaymentAmount}
+                            onChange={(e) => setNewPartialPaymentAmount(e.target.value)}
+                        />
+                        <Button onClick={handleAddPartialPayment}>Add Payment</Button>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex justify-end space-x-3">
+                      <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+                      <Button onClick={handleUpdateOrder}>Save Changes</Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+          )}
+          
           {/* Invoice Modal - Following Your Sketch Design */}
           {isInvoiceModalOpen && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
@@ -725,6 +1151,8 @@ export default function OrdersPage() {
                               </div>
                           )}
                         </div>
+
+
 
                         <div className="space-y-4">
                           <div className="grid grid-cols-2 gap-4">
@@ -1017,14 +1445,29 @@ export default function OrdersPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex space-x-2">
+                            
+                            
                             <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => generateOrderInvoice(order)}
                                 title="Generate Invoice PDF"
                             >
+                              
+                              
                               <FileText className="h-4 w-4" />
                             </Button>
+
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openPaymentModal(order)}
+                                title="Manage Payments"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                            </Button>
+                            
+                            
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button size="sm" variant="outline">
@@ -1032,6 +1475,15 @@ export default function OrdersPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent>
+                                <DropdownMenuItem
+                                    onClick={() => openEditModal(order)}
+                                    className="cursor-pointer"
+                                >
+                                  <FileText className="mr-2 h-4 w-4" />
+                                  Edit Order
+                                </DropdownMenuItem>
+                                
+                                
                                 <DropdownMenuItem
                                     onClick={() => deleteOrder(order.orderId, order.id)}
                                     className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"

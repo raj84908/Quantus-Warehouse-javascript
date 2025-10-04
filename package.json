@@ -11,7 +11,8 @@
     "migrate": "npx prisma migrate dev",
     "generate": "npx prisma generate",
     "seed": "node prisma/seed.js",
-    "start": "next start"
+    "start": "next start",
+    "migrate:prod": "prisma migrate deploy"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

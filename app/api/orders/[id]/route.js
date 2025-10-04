@@ -6,11 +6,34 @@ export async function PATCH(request, { params }) {
         const { id } = params;
         const body = await request.json();
 
+        // Delete existing items if items are provided
+        if (body.items) {
+            await prisma.orderItem.deleteMany({
+                where: { orderId: parseInt(id) }
+            });
+        }
+
         const updatedOrder = await prisma.order.update({
             where: { id: parseInt(id) },
             data: {
+                customer: body.customer,
+                email: body.email,
+                phone: body.phone,
+                billingAddress: body.billingAddress,
+                subtotal: body.subtotal,
+                total: body.total,
                 status: body.status,
-                updatedAt: new Date()
+                ...(body.items && {
+                    items: {
+                        create: body.items.map(item => ({
+                            sku: item.sku,
+                            name: item.name,
+                            price: item.price,
+                            quantity: item.quantity,
+                            productId: item.productId
+                        }))
+                    }
+                })
             },
             include: {
                 items: true
@@ -26,6 +49,8 @@ export async function PATCH(request, { params }) {
         );
     }
 }
+
+
 
 // Get a specific order by ID
 export async function GET(_, { params }) {
