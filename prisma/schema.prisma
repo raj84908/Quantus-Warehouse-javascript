@@ -53,6 +53,7 @@ model Order {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   items          OrderItem[]
+  partialPayments PartialPayment[]
 }
 
 model OrderItem {
@@ -112,6 +113,18 @@ model Profile {
   updatedAt  DateTime @updatedAt
 }
 
+model PartialPayment {
+  id         Int      @id @default(autoincrement())
+  orderId    Int      // FK to Order
+  amount     Float    // Partial payment amount
+  paidAt     DateTime @default(now())
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+}
+
 model People {
   id          Int       @id @default(autoincrement())
   name        String
@@ -129,6 +142,7 @@ model People {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
+
 
 enum Status {
   IN_STOCK

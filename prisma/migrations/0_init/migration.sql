@@ -118,10 +118,23 @@ CREATE TABLE "public"."Profile" (
     "employeeId" TEXT NOT NULL,
     "joinDate" TIMESTAMP(3) NOT NULL,
     "avatar" TEXT,
+    "password" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Profile_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."PartialPayment" (
+    "id" SERIAL NOT NULL,
+    "orderId" INTEGER NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "paidAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PartialPayment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -177,4 +190,7 @@ ALTER TABLE "public"."OrderItem" ADD CONSTRAINT "OrderItem_orderId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "public"."OrderItem" ADD CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "public"."Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."PartialPayment" ADD CONSTRAINT "PartialPayment_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "public"."Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
