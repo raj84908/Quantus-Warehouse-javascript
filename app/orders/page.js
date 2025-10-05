@@ -23,6 +23,8 @@ import {
   Minus,
   Package,
   FileText,
+  CreditCard,
+  Banknote,
 } from "lucide-react"
 import {useInventoryStats} from "../../hooks/InventoryStats";
 import Orders from "./classes/OrdersManager";
@@ -69,6 +71,17 @@ export default function OrdersPage() {
     email: "",
     phone: "",
     billingAddress: ""
+  })
+
+  // Payment Methods State
+  const [customerPaymentMethods, setCustomerPaymentMethods] = useState([])
+  const [newPaymentMethod, setNewPaymentMethod] = useState({
+    type: '',
+    cardNumber: '',
+    cardholderName: '',
+    expiry: '',
+    cvv: '',
+    isDefault: false
   })
 
   // Load logo on component mount
@@ -355,6 +368,89 @@ export default function OrdersPage() {
     fetchPartialPayments(order.id)
   }
 
+  // Payment Methods Functions
+  const fetchCustomerPaymentMethods = async (customerId) => {
+    try {
+      const response = await fetch(`/api/customers/${customerId}/payment-methods`)
+      if (response.ok) {
+        const methods = await response.json()
+        setCustomerPaymentMethods(methods)
+      }
+    } catch (error) {
+      console.error('Error fetching payment methods:', error)
+    }
+  }
+
+  const handleSavePaymentMethod = async () => {
+    if (!customerInfo.companyName) {
+      alert('Please select or enter customer information first')
+      return
+    }
+
+    try {
+      // First, get or create customer
+      let customerId = customerInfo.customerId
+      
+      if (!customerId) {
+        // Create customer if doesn't exist
+        const customerResponse = await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            company: customerInfo.companyName,
+            name: customerInfo.contactPerson,
+            email: customerInfo.email,
+            phone: customerInfo.phone,
+            address: customerInfo.billingAddress
+          })
+        })
+        
+        if (customerResponse.ok) {
+          const customer = await customerResponse.json()
+          customerId = customer.id
+          setCustomerInfo(prev => ({ ...prev, customerId: customer.id }))
+        }
+      }
+
+      // Save payment method
+      const paymentMethodData = {
+        type: newPaymentMethod.type,
+        isDefault: customerPaymentMethods.length === 0 // Set as default if first method
+      }
+
+      // Add card details if it's a credit/debit card
+      if (newPaymentMethod.type === 'credit_card' || newPaymentMethod.type === 'debit_card') {
+        paymentMethodData.cardNumber = newPaymentMethod.cardNumber
+        paymentMethodData.cardholderName = newPaymentMethod.cardholderName
+        paymentMethodData.expiry = newPaymentMethod.expiry
+        // Note: In production, you should NEVER store CVV
+      }
+
+      const response = await fetch(`/api/customers/${customerId}/payment-methods`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentMethodData)
+      })
+
+      if (response.ok) {
+        const savedMethod = await response.json()
+        setCustomerPaymentMethods(prev => [...prev, savedMethod])
+        setNewPaymentMethod({
+          type: '',
+          cardNumber: '',
+          cardholderName: '',
+          expiry: '',
+          cvv: '',
+          isDefault: false
+        })
+        alert('Payment method saved successfully!')
+      }
+    } catch (error) {
+      console.error('Error saving payment method:', error)
+      alert('Failed to save payment method')
+    }
+  }
+
   // Toggle order status between Processing and Completed
   const toggleOrderStatus = async (orderId) => {
     try {
@@ -514,8 +610,6 @@ export default function OrdersPage() {
             doc.text(`$${balanceDue.toFixed(2)}`, 180, finalY + 35)
             doc.setTextColor(0, 0, 0) // Reset to black
 
-            // ... (rest of your payment instructions code stays the same)
-
             doc.save(`${invoiceNumber}.pdf`)
             resolve(invoiceNumber)
           } catch (error) {
@@ -669,7 +763,6 @@ export default function OrdersPage() {
       console.log('Saved order:', savedOrder);
 
       // Generate PDF AFTER successful save
-      // In handleCreateInvoice function, update this line:
       const invoiceNumber = await generateInvoicePDF(savedOrder, savedOrder.items, false, logoData, 0);
 
       // Update orders state
@@ -694,9 +787,6 @@ export default function OrdersPage() {
     }
   };
 
-
-
-  // Function to generate PDF from existing order
   // Function to generate PDF from existing order
   const generateOrderInvoice = async (order) => {
     try {
@@ -723,8 +813,6 @@ export default function OrdersPage() {
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orders</h1>
-              {/* Debug info - remove this in production */}
-              {/*logoData && <p className="text-sm text-green-600">Logo loaded successfully</p>*/}
               {!logoData && <p className="text-sm text-orange-600">Logo not loaded</p>}
             </div>
             <div className="flex space-x-3">
@@ -734,9 +822,6 @@ export default function OrdersPage() {
               </Button>
             </div>
           </div>
-
-          {/* Partial Payment Modal */}
-
 
           {/* Partial Payment Modal */}
           {isPaymentModalOpen && selectedOrderForPayment && (
@@ -994,7 +1079,7 @@ export default function OrdersPage() {
               </div>
           )}
           
-          {/* Invoice Modal - Following Your Sketch Design */}
+          {/* Invoice Modal with Payment Methods */}
           {isInvoiceModalOpen && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full h-full max-w-[98vw] max-h-[98vh] overflow-y-auto">
@@ -1038,7 +1123,7 @@ export default function OrdersPage() {
                                       <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
                                         {product.image ? (
                                             <img
-                                                src={`${API_BASE}${product.image}`}  // Add your backend URL
+                                                src={`${API_BASE}${product.image}`}
                                                 alt={product.name}
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => {
@@ -1085,7 +1170,7 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
-                      {/* RIGHT COLUMN: Customer Information */}
+                      {/* RIGHT COLUMN: Customer Information & Payment Methods */}
                       <div className="space-y-6">
                         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Customer Information</h3>
 
@@ -1130,7 +1215,11 @@ export default function OrdersPage() {
                                                 phone: customer.phone || "",
                                                 billingAddress: customer.address || "",
                                                 _search: "",
-                                              })
+                                              });
+                                              // Load customer's saved payment methods
+                                              if (customer.id) {
+                                                fetchCustomerPaymentMethods(customer.id);
+                                              }
                                             }}
                                         >
                                           <div className="font-semibold">{customer.company || customer.name}</div>
@@ -1151,8 +1240,6 @@ export default function OrdersPage() {
                               </div>
                           )}
                         </div>
-
-
 
                         <div className="space-y-4">
                           <div className="grid grid-cols-2 gap-4">
@@ -1206,9 +1293,139 @@ export default function OrdersPage() {
                                 placeholder="Enter billing address"
                                 value={customerInfo.billingAddress}
                                 onChange={(e) => updateCustomerInfo("billingAddress", e.target.value)}
-                                rows={4}
+                                rows={3}
                                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100 resize-none"
                             />
+                          </div>
+
+                          {/* Payment Method Section */}
+                          <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-600">
+                            <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Payment Method</h4>
+                            
+                            {/* Saved Payment Methods */}
+                            {customerPaymentMethods.length > 0 && (
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Saved Payment Methods</label>
+                                <Select
+                                  value={customerInfo.paymentMethod}
+                                  onValueChange={(value) => updateCustomerInfo("paymentMethod", value)}
+                                >
+                                  <SelectTrigger className="h-12">
+                                    <SelectValue placeholder="Select payment method" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {customerPaymentMethods.map((method) => (
+                                      <SelectItem key={method.id} value={method.type}>
+                                        <div className="flex items-center">
+                                          {method.type === 'credit_card' && <CreditCard className="h-4 w-4 mr-2" />}
+                                          {method.type === 'debit_card' && <CreditCard className="h-4 w-4 mr-2" />}
+                                          {method.type === 'cash' && <DollarSign className="h-4 w-4 mr-2" />}
+                                          {method.type === 'check' && <FileText className="h-4 w-4 mr-2" />}
+                                          {method.type === 'bank_transfer' && <Banknote className="h-4 w-4 mr-2" />}
+                                          {method.type === 'credit_card' || method.type === 'debit_card' 
+                                            ? `${method.cardType} •••• ${method.last4} (Exp: ${method.expiryMonth}/${method.expiryYear})`
+                                            : method.type.charAt(0).toUpperCase() + method.type.slice(1).replace('_', ' ')
+                                          }
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            {/* Add New Payment Method */}
+                            <div className="space-y-3">
+                              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {customerPaymentMethods.length > 0 ? 'Or Add New Payment Method' : 'Add Payment Method'}
+                              </label>
+                              
+                              <div className="grid grid-cols-2 gap-3">
+                                <Select
+                                  value={newPaymentMethod.type}
+                                  onValueChange={(value) => setNewPaymentMethod(prev => ({ ...prev, type: value }))}
+                                >
+                                  <SelectTrigger className="h-12">
+                                    <SelectValue placeholder="Payment type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="credit_card">
+                                      <div className="flex items-center">
+                                        <CreditCard className="h-4 w-4 mr-2" />
+                                        Credit Card
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="debit_card">
+                                      <div className="flex items-center">
+                                        <CreditCard className="h-4 w-4 mr-2" />
+                                        Debit Card
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="cash">
+                                      <div className="flex items-center">
+                                        <DollarSign className="h-4 w-4 mr-2" />
+                                        Cash
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="check">
+                                      <div className="flex items-center">
+                                        <FileText className="h-4 w-4 mr-2" />
+                                        Check
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="bank_transfer">
+                                      <div className="flex items-center">
+                                        <Banknote className="h-4 w-4 mr-2" />
+                                        Bank Transfer
+                                      </div>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+
+                                <Button 
+                                  onClick={handleSavePaymentMethod}
+                                  disabled={!newPaymentMethod.type}
+                                  className="h-12"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Save Method
+                                </Button>
+                              </div>
+
+                              {/* Credit Card Details (show only when credit/debit card is selected) */}
+                              {(newPaymentMethod.type === 'credit_card' || newPaymentMethod.type === 'debit_card') && (
+                                <div className="grid grid-cols-2 gap-3 mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                  <Input
+                                    placeholder="Card Number"
+                                    value={newPaymentMethod.cardNumber}
+                                    onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, cardNumber: e.target.value }))}
+                                    className="h-12"
+                                    maxLength={16}
+                                  />
+                                  <Input
+                                    placeholder="Cardholder Name"
+                                    value={newPaymentMethod.cardholderName}
+                                    onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, cardholderName: e.target.value }))}
+                                    className="h-12"
+                                  />
+                                  <Input
+                                    placeholder="MM/YY"
+                                    value={newPaymentMethod.expiry}
+                                    onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, expiry: e.target.value }))}
+                                    className="h-12"
+                                    maxLength={5}
+                                  />
+                                  <Input
+                                    placeholder="CVV"
+                                    value={newPaymentMethod.cvv}
+                                    onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, cvv: e.target.value }))}
+                                    className="h-12"
+                                    maxLength={4}
+                                    type="password"
+                                  />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1231,6 +1448,9 @@ export default function OrdersPage() {
                               <table className="w-full">
                                 <thead>
                                 <tr className="border-b border-gray-200 dark:border-gray-600">
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Product</th>
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Quantity</th>
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Price</th>
                                   <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Total</th>
                                   <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-20">Action</th>
                                 </tr>
@@ -1445,16 +1665,12 @@ export default function OrdersPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex space-x-2">
-                            
-                            
                             <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => generateOrderInvoice(order)}
                                 title="Generate Invoice PDF"
                             >
-                              
-                              
                               <FileText className="h-4 w-4" />
                             </Button>
 
@@ -1466,7 +1682,6 @@ export default function OrdersPage() {
                             >
                               <DollarSign className="h-4 w-4" />
                             </Button>
-                            
                             
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -1482,7 +1697,6 @@ export default function OrdersPage() {
                                   <FileText className="mr-2 h-4 w-4" />
                                   Edit Order
                                 </DropdownMenuItem>
-                                
                                 
                                 <DropdownMenuItem
                                     onClick={() => deleteOrder(order.orderId, order.id)}
