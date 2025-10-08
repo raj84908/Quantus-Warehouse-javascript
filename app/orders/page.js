@@ -1618,6 +1618,9 @@ export default function OrdersPage() {
                               <table className="w-full">
                                 <thead>
                                 <tr className="border-b border-gray-200 dark:border-gray-600">
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Item</th>
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-24">Quantity</th>
+                                  <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Set Price</th>
                                   <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-32">Total</th>
                                   <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-20">Action</th>
                                 </tr>
