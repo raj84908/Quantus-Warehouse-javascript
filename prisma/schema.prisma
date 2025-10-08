@@ -143,6 +143,24 @@ model People {
   updatedAt   DateTime  @updatedAt
 }
 
+model InvoiceSettings {
+  id              Int      @id @default(autoincrement())
+  companyName     String   @default("Your Company")
+  companyEmail    String?
+  companyPhone    String?
+  companyAddress  String?
+  logo            String?  // Base64 encoded logo
+  primaryColor    String   @default("#8B5A3C") // Default brown color
+  secondaryColor  String   @default("#F5F5F5") // Default light gray
+  textColor       String   @default("#FFFFFF") // Default white text
+  invoiceComments String?  @default("Thank you for your business! Please remit payment within 30 days of invoice date. Late payments may be subject to fees.") // Invoice footer comments
+  paymentMethods  String?  @default("Bank Transfer: [Account Details]\nPayPal: payment@company.com\nCheck: Make payable to Company Name") // Payment methods text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("invoice_settings")
+}
+
 
 enum Status {
   IN_STOCK

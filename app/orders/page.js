@@ -23,6 +23,7 @@ import {
   Minus,
   Package,
   FileText,
+  RefreshCw,
 } from "lucide-react"
 import {useInventoryStats} from "../../hooks/InventoryStats";
 import Orders from "./classes/OrdersManager";
@@ -40,6 +41,7 @@ export default function OrdersPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [selectedOrderForPayment, setSelectedOrderForPayment] = useState(null)
   const [newPartialPaymentAmount, setNewPartialPaymentAmount] = useState("")
+  const [invoiceSettings, setInvoiceSettings] = useState(null)
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingOrder, setEditingOrder] = useState(null)
@@ -95,7 +97,38 @@ export default function OrdersPage() {
     };
 
     loadLogo();
+    loadInvoiceSettings();
+
+    // Listen for messages from settings page to refresh invoice settings
+    const handleMessage = (event) => {
+      if (event.data === 'invoice-settings-updated') {
+        console.log('Received invoice settings update notification')
+        loadInvoiceSettings()
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+
+    return () => {
+      window.removeEventListener('message', handleMessage)
+    }
   }, []);
+
+  const loadInvoiceSettings = async () => {
+    try {
+      console.log('Loading invoice settings...')
+      const response = await fetch('/api/invoice-settings')
+      if (response.ok) {
+        const settings = await response.json()
+        console.log('Invoice settings loaded:', settings)
+        setInvoiceSettings(settings)
+      } else {
+        console.error('Failed to fetch invoice settings:', response.status)
+      }
+    } catch (error) {
+      console.error('Failed to load invoice settings:', error)
+    }
+  }
 
   useEffect(() => {
     if (isInvoiceModalOpen) {
@@ -390,9 +423,14 @@ export default function OrdersPage() {
     }
   };
 
-  // Simplified PDF Generation Function - expects base64 logo data
-  const generateInvoicePDF = (orderData, items, isNewInvoice = false, logoBase64, totalPaid = 0) => {
+  // Professional Desert Storm Invoice PDF Generation
+  const generateInvoicePDF = (orderData, items, isNewInvoice = false, logoBase64, totalPaid = 0, payments = []) => {
     return new Promise((resolve, reject) => {
+      if (!invoiceSettings) {
+        reject(new Error('Invoice settings not loaded. Please check Settings -> Invoice tab.'))
+        return
+      }
+
       const script = document.createElement('script')
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 
@@ -405,116 +443,317 @@ export default function OrdersPage() {
             const { jsPDF } = window.jspdf
             const doc = new jsPDF()
 
-            // Generate invoice number
+            // Generate invoice number and dates
             const invoiceNumber = isNewInvoice
                 ? `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
                 : orderData.orderId.replace('ORD', 'INV')
             const currentDate = new Date(orderData.createdAt).toLocaleDateString()
+            const dueDate = orderData.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()
 
-            // === HEADER ===
-            if (logoBase64) {
+            // Color conversion helper
+            const hexToRgb = (hex) => {
+              const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+              return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+              } : { r: 74, g: 85, b: 104 }
+            }
+
+            const primaryColor = hexToRgb(invoiceSettings.primaryColor || '#4A5568')
+            const textColor = hexToRgb(invoiceSettings.textColor || '#FFFFFF')
+
+            // === COLORED HEADER SECTION ===
+            doc.setFillColor(primaryColor.r, primaryColor.g, primaryColor.b)
+            doc.rect(0, 0, 220, 35, 'F')
+
+            // Company name in header (white text)
+            doc.setTextColor(textColor.r, textColor.g, textColor.b)
+            doc.setFontSize(18)
+            doc.setFont("helvetica", "bold")
+            doc.text(invoiceSettings.companyName || "Desert Storm Fragrance", 15, 22)
+
+            // INVOICE text in header
+            doc.setFontSize(24)
+            doc.setFont("helvetica", "bold")
+            doc.text("INVOICE", 200, 22, { align: "right" })
+
+            // Reset text color
+            doc.setTextColor(0, 0, 0)
+
+            // === LOGO AND INVOICE DETAILS SECTION (ALIGNED) ===
+            const detailsY = 50
+
+            // Logo on the left - aligned with invoice details
+            const logoToUse = invoiceSettings.logo || logoBase64
+            if (logoToUse) {
               try {
-                doc.addImage(logoBase64, "PNG", 15, 10, 40, 25) // logo
+                // Create white background box for logo
+                doc.setFillColor(255, 255, 255)
+                doc.roundedRect(15, detailsY - 5, 50, 30, 2, 2, 'F')
+
+                // Add logo maintaining aspect ratio
+                const logoWidth = 50
+                const logoHeight = 40
+                const logoX = 7
+                const logoY = detailsY - 10
+
+                doc.addImage(logoToUse, "PNG", logoX, logoY, logoWidth, logoHeight)
               } catch (error) {
-                console.warn('Failed to add logo to PDF:', error);
+                console.warn('Failed to add logo to PDF:', error)
               }
             }
 
-            doc.setFontSize(16)
-            doc.setFont("helvetica", "bold")
-            doc.text("Desert Storm Fragrance", 70, 20)
-
+            // Invoice details on the right
             doc.setFontSize(10)
-            doc.setFont("helvetica", "normal")
-            doc.text("(901)319-9260", 70, 28)
-            doc.text("(229)854-4536", 70, 33)
-            doc.text("dsfragrance85@gmail.com", 70, 38)
-            doc.text("1201 Eisenhower Pkwy, Macon, GA 31206", 70, 43)
-
-            // Invoice Title
-            doc.setFontSize(18)
             doc.setFont("helvetica", "bold")
-            doc.text("INVOICE", 170, 20)
+            doc.text("Number:", 140, detailsY)
+            doc.text("Date:", 140, detailsY + 8)
+            doc.text("Due Date:", 140, detailsY + 16)
 
-            // Invoice Details
-            doc.setFontSize(10)
             doc.setFont("helvetica", "normal")
-            doc.text(`NUMBER: ${invoiceNumber}`, 170, 30)
-            doc.text(`DATE: ${currentDate}`, 170, 35)
+            doc.text(invoiceNumber, 200, detailsY, { align: "right" })
+            doc.text(currentDate, 200, detailsY + 8, { align: "right" })
+            doc.text(dueDate, 200, detailsY + 16, { align: "right" })
 
-            // === BILL TO ===
-            doc.setFontSize(12)
+            // === INVOICE FOR / INVOICE FROM SECTIONS (ALIGNED) ===
+            const sectionY = 95
+
+            // Left side - INVOICE FOR
+            doc.setFontSize(11)
             doc.setFont("helvetica", "bold")
-            doc.text("BILL TO:", 15, 60)
+            doc.text("INVOICE FOR:", 15, sectionY)
 
-            doc.setFontSize(10)
-            doc.setFont("helvetica", "normal")
+            // Right side - INVOICE FROM (same Y position)
+            doc.text("INVOICE FROM:", 115, sectionY)
+
+            // Customer details (left)
+            doc.setFontSize(11)
+            doc.setFont("helvetica", "bold")
             const customerName = isNewInvoice ? customerInfo.companyName : orderData.customer
+            doc.text(customerName || "Customer Name", 15, sectionY + 10)
+
+            doc.setFont("helvetica", "normal")
+            doc.setFontSize(9)
+            let leftY = sectionY + 17
+
             const customerEmail = isNewInvoice ? customerInfo.email : orderData.email
             const customerPhone = isNewInvoice ? customerInfo.phone : orderData.phone
             const customerAddress = isNewInvoice ? customerInfo.billingAddress : orderData.billingAddress
 
-            doc.text(customerName || "Customer Name", 15, 70)
-            if (customerPhone) doc.text(customerPhone, 15, 75)
-            if (customerEmail) doc.text(customerEmail, 15, 80)
+            if (customerEmail) {
+              doc.text(customerEmail, 15, leftY)
+              leftY += 5
+            }
+            if (customerPhone) {
+              doc.text(customerPhone, 15, leftY)
+              leftY += 5
+            }
             if (customerAddress) {
-              const addressLines = customerAddress.split('\n')
-              addressLines.forEach((line, index) => {
-                doc.text(line, 15, 85 + (index * 5))
-              })
+              const addressLines = doc.splitTextToSize(customerAddress.replace(/\n/g, ' '), 85)
+              doc.text(addressLines, 15, leftY)
+              leftY += (addressLines.length * 5)
             }
 
-            // === INVOICE ITEMS TABLE ===
+            // Company details (right) - FIXED FIELD NAMES
+            doc.setFont("helvetica", "bold")
+            doc.setFontSize(11)
+            doc.text(invoiceSettings.companyName || "Desert Storm Fragrance", 115, sectionY + 10)
+
+            doc.setFont("helvetica", "normal")
+            doc.setFontSize(9)
+            let rightY = sectionY + 17
+
+            // FIX: Use companyEmail instead of email
+            if (invoiceSettings.companyEmail) {
+              doc.text(invoiceSettings.companyEmail, 115, rightY)
+              rightY += 5
+            }
+            // FIX: Use companyPhone instead of phone
+            if (invoiceSettings.companyPhone) {
+              doc.text(invoiceSettings.companyPhone, 115, rightY)
+              rightY += 5
+            }
+            // FIX: Use companyAddress instead of address
+            if (invoiceSettings.companyAddress) {
+              const companyAddressLines = doc.splitTextToSize(invoiceSettings.companyAddress, 85)
+              doc.text(companyAddressLines, 115, rightY)
+              rightY += (companyAddressLines.length * 5)
+            }
+
+            // === ITEMS TABLE ===
+            const tableStartY = Math.max(leftY, rightY) + 15
+
             const tableData = items.map(item => [
               item.name,
               item.quantity.toString(),
-              `$${item.price.toFixed(2)}`,
+              `$${parseFloat(item.price).toFixed(2)}`,
               `$${(item.quantity * item.price).toFixed(2)}`
             ])
 
             doc.autoTable({
-              startY: 110,
-              head: [["Description", "Quantity", "Unit Price", "Amount"]],
+              startY: tableStartY,
+              head: [["Description", "Quantity", "Unit Price", "Total"]],
               body: tableData,
-              styles: { font: "helvetica", fontSize: 10, cellPadding: 3 },
-              headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold" },
-              tableLineColor: [200, 200, 200],
-              tableLineWidth: 0.2,
+              theme: 'grid',
+              styles: {
+                font: "helvetica",
+                fontSize: 10,
+                cellPadding: 5
+              },
+              headStyles: {
+                fillColor: [primaryColor.r, primaryColor.g, primaryColor.b],
+                textColor: [textColor.r, textColor.g, textColor.b],
+                fontStyle: "bold",
+                halign: 'left'
+              },
               columnStyles: {
-                0: { cellWidth: 95 }, // Description
+                0: { cellWidth: 100 },
                 1: { cellWidth: 25, halign: "center" },
-                2: { cellWidth: 30, halign: "right" },
-                3: { cellWidth: 30, halign: "right" }
+                2: { cellWidth: 32, halign: "right" },
+                3: { cellWidth: 33, halign: "right" }
               }
             })
 
-            // === TOTALS ===
+            // === TOTALS AND PAYMENT SECTIONS ===
+            const finalY = doc.lastAutoTable.finalY + 15
             const subtotal = calculateSubtotal(items)
             const total = calculateTotal(items)
             const balanceDue = total - totalPaid
 
-            let finalY = doc.lastAutoTable.finalY + 10
+            // Left side - Payment Methods (USE CUSTOM FROM SETTINGS)
+            doc.setFontSize(11)
+            doc.setFont("helvetica", "bold")
+            doc.text("Payment Methods", 15, finalY)
+
+            doc.setFont("helvetica", "normal")
+            doc.setFontSize(9)
+
+            // Parse and display custom payment methods with proper line wrapping
+            const paymentMethodsText = invoiceSettings.paymentMethods || "Bank Transfer: [Account Details]\nPayPal: payment@company.com\nCheck: Make payable to Company Name"
+            const paymentLines = paymentMethodsText.split('\n')
+            let paymentY = finalY + 8
+            const maxPaymentWidth = 110 // Maximum width for payment methods text
+
+            paymentLines.forEach((line) => {
+              if (line.trim()) {
+                // Use splitTextToSize to wrap long lines
+                const wrappedLines = doc.splitTextToSize(line.trim(), maxPaymentWidth)
+                wrappedLines.forEach((wrappedLine) => {
+                  doc.text(wrappedLine, 15, paymentY)
+                  paymentY += 5
+                })
+              }
+            })
+
+            // Calculate the height needed for payment methods
+            const paymentSectionHeight = paymentY - finalY
+
+            // Right side - Totals (aligned properly)
+            const totalsX = 140
+            const totalsValueX = 195
+
+            doc.setFontSize(10)
+            doc.setFont("helvetica", "bold")
+            doc.text("SUBTOTAL:", totalsX, finalY)
+            doc.text(`$${subtotal.toFixed(2)}`, totalsValueX, finalY, { align: "right" })
+
+            doc.text("TOTAL:", totalsX, finalY + 8)
+            doc.text(`$${total.toFixed(2)}`, totalsValueX, finalY + 8, { align: "right" })
+
+            // PAID and BALANCE DUE
+            if (totalPaid > 0) {
+              doc.setTextColor(0, 128, 0)
+              doc.text("PAID:", totalsX, finalY + 16)
+              doc.text(`$${totalPaid.toFixed(2)}`, totalsValueX, finalY + 16, { align: "right" })
+
+              // BALANCE DUE in black box
+              doc.setFillColor(0, 0, 0)
+              doc.rect(totalsX - 5, finalY + 22, 65, 10, 'F')
+              doc.setTextColor(255, 255, 255)
+              doc.setFontSize(11)
+              doc.text("BALANCE DUE:", totalsX, finalY + 29)
+              doc.text(`$${balanceDue.toFixed(2)}`, totalsValueX, finalY + 29, { align: "right" })
+            } else {
+              // TOTAL in black box
+              doc.setFillColor(0, 0, 0)
+              doc.rect(totalsX - 5, finalY + 14, 65, 10, 'F')
+              doc.setTextColor(255, 255, 255)
+              doc.setFont("helvetica", "bold")
+              doc.setFontSize(11)
+              doc.text("TOTAL:", totalsX, finalY + 21)
+              doc.text(`$${total.toFixed(2)}`, totalsValueX, finalY + 21, { align: "right" })
+            }
+
+            // Reset text color
+            doc.setTextColor(0, 0, 0)
+
+            // === PAYMENT HISTORY SECTION (if there are payments) ===
+            let paymentHistoryHeight = 0
+            if (payments && payments.length > 0) {
+              const totalsSectionHeight = totalPaid > 0 ? 40 : 30
+              const paymentHistoryY = finalY + Math.max(paymentSectionHeight, totalsSectionHeight) + 10
+
+              doc.setFontSize(11)
+              doc.setFont("helvetica", "bold")
+              doc.text("Payment History", 15, paymentHistoryY)
+
+              // Create payment history table
+              const paymentTableData = payments.map(payment => [
+                new Date(payment.paidAt).toLocaleDateString(),
+                new Date(payment.paidAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                `$${payment.amount.toFixed(2)}`
+              ])
+
+              doc.autoTable({
+                startY: paymentHistoryY + 5,
+                head: [["Date", "Time", "Amount"]],
+                body: paymentTableData,
+                theme: 'striped',
+                styles: {
+                  font: "helvetica",
+                  fontSize: 9,
+                  cellPadding: 3
+                },
+                headStyles: {
+                  fillColor: [200, 200, 200],
+                  textColor: [0, 0, 0],
+                  fontStyle: "bold"
+                },
+                columnStyles: {
+                  0: { cellWidth: 35 },
+                  1: { cellWidth: 35 },
+                  2: { cellWidth: 30, halign: "right", textColor: [0, 128, 0], fontStyle: "bold" }
+                },
+                margin: { left: 15, right: 140 }
+              })
+
+              paymentHistoryHeight = doc.lastAutoTable.finalY - paymentHistoryY + 10
+            }
+
+            // === COMMENTS SECTION ===
+            // Calculate Y position based on payment methods height, totals section, and payment history
+            const totalsSectionHeight = totalPaid > 0 ? 40 : 30
+            const commentsY = finalY + Math.max(paymentSectionHeight, totalsSectionHeight) + paymentHistoryHeight + 10
 
             doc.setFont("helvetica", "bold")
-            doc.text("SUBTOTAL:", 145, finalY)
-            doc.text(`$${subtotal.toFixed(2)}`, 180, finalY)
+            doc.setFontSize(11)
+            doc.text("Comments", 15, commentsY)
 
-            doc.text("TOTAL:", 145, finalY + 10)
-            doc.text(`$${total.toFixed(2)}`, 180, finalY + 10)
+            doc.setFont("helvetica", "normal")
+            doc.setFontSize(9)
+            // Use custom comments from settings or default
+            const comments = invoiceSettings.invoiceComments || "Thank you for your business! Please remit payment within 30 days of invoice date. Late payments may be subject to fees."
+            const splitComments = doc.splitTextToSize(comments, 180)
+            doc.text(splitComments, 15, commentsY + 8)
 
-            // Show actual paid amount
-            doc.setTextColor(0, 128, 0) // Green for paid
-            doc.text("PAID:", 145, finalY + 20)
-            doc.text(`$${totalPaid.toFixed(2)}`, 180, finalY + 20)
-            doc.setTextColor(0, 0, 0) // Reset to black
-
-            // Show balance due
-            doc.setTextColor(255, 0, 0) // Red for balance
-            doc.text("BALANCE DUE:", 145, finalY + 35)
-            doc.text(`$${balanceDue.toFixed(2)}`, 180, finalY + 35)
-            doc.setTextColor(0, 0, 0) // Reset to black
-
-            // ... (rest of your payment instructions code stays the same)
+            // === SIGNATURE SECTION ===
+            const sigY = commentsY + 8 + (splitComments.length * 5) + 10
+            doc.setLineWidth(0.5)
+            doc.line(140, sigY, 195, sigY)
+            doc.setFont("helvetica", "normal")
+            doc.setFontSize(9)
+            doc.text("Authorized Signature", 167.5, sigY + 6, { align: "center" })
 
             doc.save(`${invoiceNumber}.pdf`)
             resolve(invoiceNumber)
@@ -531,6 +770,7 @@ export default function OrdersPage() {
       document.head.appendChild(script)
     })
   }
+
 
   // Function to delete an order
   const deleteOrder = async (orderId, orderDbId) => {
@@ -620,6 +860,11 @@ export default function OrdersPage() {
 
   const handleCreateInvoice = async () => {
     try {
+      if (!invoiceSettings) {
+        alert('Invoice settings not loaded. Please go to Settings → Invoice to configure your invoice settings first.')
+        return
+      }
+
       // Generate the invoice number before using it
       const tempInvoiceNumber = `INV${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
 
@@ -670,7 +915,7 @@ export default function OrdersPage() {
 
       // Generate PDF AFTER successful save
       // In handleCreateInvoice function, update this line:
-      const invoiceNumber = await generateInvoicePDF(savedOrder, savedOrder.items, false, logoData, 0);
+      const invoiceNumber = await generateInvoicePDF(savedOrder, savedOrder.items, false, logoData, 0, []);
 
       // Update orders state
       setOrders(prevOrders => [savedOrder, ...prevOrders]);
@@ -700,20 +945,27 @@ export default function OrdersPage() {
   // Function to generate PDF from existing order
   const generateOrderInvoice = async (order) => {
     try {
+      if (!invoiceSettings) {
+        alert('Invoice settings not loaded. Please go to Settings → Invoice to configure your invoice settings first.')
+        return
+      }
+
       // Fetch partial payments for this order
       const paymentsResponse = await fetch(`/api/orders/${order.id}/partial-payments`)
       let totalPaid = 0
+      let payments = []
 
       if (paymentsResponse.ok) {
-        const payments = await paymentsResponse.json()
+        payments = await paymentsResponse.json()
         totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
       }
 
-      await generateInvoicePDF(order, order.items, false, logoData, totalPaid)
-      alert("Invoice PDF generated successfully!")
+      // Pass payments array to PDF generation
+      await generateInvoicePDF(order, order.items, false, logoData, totalPaid, payments)
+      alert("Professional invoice PDF generated successfully!")
     } catch (error) {
       console.error("Error generating invoice:", error)
-      alert("Error generating invoice PDF. Please try again.")
+      alert(`Error generating invoice PDF: ${error.message}`)
     }
   }
 
@@ -728,6 +980,14 @@ export default function OrdersPage() {
               {!logoData && <p className="text-sm text-orange-600">Logo not loaded</p>}
             </div>
             <div className="flex space-x-3">
+              <Button 
+                variant="outline" 
+                onClick={loadInvoiceSettings}
+                title="Refresh invoice settings"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh Settings
+              </Button>
               <Button onClick={() => setIsInvoiceModalOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Invoice
