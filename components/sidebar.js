@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   Box,
+  Store, // Add this import
 } from "lucide-react"
 
 const navigation = [
@@ -30,6 +31,7 @@ const navigation = [
   { name: "Staff", href: "/staff", icon: Users },
   { name: "Profile", href: "/profile", icon: User },
   { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Shopify", href: "/shopify", icon: Store }, // Add this line
 ]
 
 export function Sidebar() {
