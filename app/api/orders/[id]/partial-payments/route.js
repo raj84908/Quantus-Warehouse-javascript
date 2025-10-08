@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma'
 
 // POST /api/orders/[id]/partial-payments
+// POST /api/orders/[id]/partial-payments
 export async function POST(request, { params }) {
     try {
         const orderId = parseInt(params.id)
@@ -37,10 +38,14 @@ export async function POST(request, { params }) {
             }, { status: 400 })
         }
 
+        // Create payment with new fields
         const payment = await prisma.partialPayment.create({
             data: {
                 orderId,
                 amount: body.amount,
+                paymentMethod: body.paymentMethod || 'Cash',
+                paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
+                notes: body.notes || null,
             }
         })
 

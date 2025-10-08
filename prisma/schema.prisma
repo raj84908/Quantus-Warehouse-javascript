@@ -114,15 +114,17 @@ model Profile {
 }
 
 model PartialPayment {
-  id         Int      @id @default(autoincrement())
-  orderId    Int      // FK to Order
-  amount     Float    // Partial payment amount
-  paidAt     DateTime @default(now())
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  orderId       Int      // FK to Order
+  amount        Float    // Partial payment amount
+  paymentMethod String?  @default("Cash") // Payment method (Cash, Card, Check, Bank Transfer, etc.)
+  paymentDate   DateTime @default(now()) // User can specify the payment date
+  paidAt        DateTime @default(now()) // System timestamp when payment was recorded
+  notes         String?  // Optional notes about the payment
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model People {

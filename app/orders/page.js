@@ -42,6 +42,10 @@ export default function OrdersPage() {
   const [selectedOrderForPayment, setSelectedOrderForPayment] = useState(null)
   const [newPartialPaymentAmount, setNewPartialPaymentAmount] = useState("")
   const [invoiceSettings, setInvoiceSettings] = useState(null)
+  
+  const [newPaymentMethod, setNewPaymentMethod] = useState("Cash")
+  const [newPaymentDate, setNewPaymentDate] = useState(new Date().toISOString().split('T')[0])
+  const [newPaymentNotes, setNewPaymentNotes] = useState("")
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingOrder, setEditingOrder] = useState(null)
@@ -700,14 +704,14 @@ export default function OrdersPage() {
 
               // Create payment history table
               const paymentTableData = payments.map(payment => [
-                new Date(payment.paidAt).toLocaleDateString(),
-                new Date(payment.paidAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                new Date(payment.paymentDate || payment.paidAt).toLocaleDateString(),
+                payment.paymentMethod || 'Cash',
                 `$${payment.amount.toFixed(2)}`
               ])
 
               doc.autoTable({
                 startY: paymentHistoryY + 5,
-                head: [["Date", "Time", "Amount"]],
+                head: [["Date", "Method", "Amount"]],
                 body: paymentTableData,
                 theme: 'striped',
                 styles: {
@@ -721,7 +725,7 @@ export default function OrdersPage() {
                   fontStyle: "bold"
                 },
                 columnStyles: {
-                  0: { cellWidth: 35 },
+                  0: { cellWidth: 30 },
                   1: { cellWidth: 35 },
                   2: { cellWidth: 30, halign: "right", textColor: [0, 128, 0], fontStyle: "bold" }
                 },
@@ -813,7 +817,6 @@ export default function OrdersPage() {
       return
     }
 
-    // Determine which order we're working with
     const targetOrder = isEditModalOpen ? editingOrder : selectedOrderForPayment
 
     if (!targetOrder) {
@@ -834,7 +837,12 @@ export default function OrdersPage() {
       const response = await fetch(`/api/orders/${targetOrder.id}/partial-payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount })
+        body: JSON.stringify({
+          amount,
+          paymentMethod: newPaymentMethod,
+          paymentDate: new Date(newPaymentDate).toISOString(),
+          notes: newPaymentNotes || null
+        })
       })
 
       if (!response.ok) {
@@ -844,7 +852,13 @@ export default function OrdersPage() {
 
       const payment = await response.json()
       setPartialPayments([payment, ...partialPayments])
+
+      // Reset form
       setNewPartialPaymentAmount("")
+      setNewPaymentMethod("Cash")
+      setNewPaymentDate(new Date().toISOString().split('T')[0])
+      setNewPaymentNotes("")
+
       alert("Payment recorded successfully!")
     } catch (error) {
       console.error('Error adding partial payment:', error)
@@ -1001,10 +1015,10 @@ export default function OrdersPage() {
           {/* Partial Payment Modal */}
           {isPaymentModalOpen && selectedOrderForPayment && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
                   <div className="p-6">
                     <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-2xl font-bold text-gray-900">Manage Payments</h2>
+                      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Manage Payments</h2>
                       <Button
                           variant="outline"
                           size="sm"
@@ -1012,6 +1026,9 @@ export default function OrdersPage() {
                             setIsPaymentModalOpen(false)
                             setPartialPayments([])
                             setNewPartialPaymentAmount("")
+                            setNewPaymentMethod("Cash")
+                            setNewPaymentDate(new Date().toISOString().split('T')[0])
+                            setNewPaymentNotes("")
                           }}
                       >
                         <X className="h-4 w-4" />
@@ -1019,62 +1036,139 @@ export default function OrdersPage() {
                     </div>
 
                     {/* Order Summary */}
-                    <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                      <h3 className="font-semibold text-lg mb-2">{selectedOrderForPayment.orderId}</h3>
-                      <p className="text-sm text-gray-600">{selectedOrderForPayment.customer}</p>
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-6">
+                      <h3 className="font-semibold text-lg mb-2 text-gray-900 dark:text-gray-100">{selectedOrderForPayment.orderId}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{selectedOrderForPayment.customer}</p>
                       <div className="mt-4 space-y-2">
                         <div className="flex justify-between">
-                          <span className="font-medium">Order Total:</span>
-                          <span className="font-bold">${selectedOrderForPayment.total.toFixed(2)}</span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">Order Total:</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">${selectedOrderForPayment.total.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between text-green-600">
+                        <div className="flex justify-between text-green-600 dark:text-green-400">
                           <span className="font-medium">Total Paid:</span>
                           <span className="font-bold">
-                        ${partialPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
-                      </span>
+              ${partialPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
+            </span>
                         </div>
-                        <div className="flex justify-between text-red-600 text-lg pt-2 border-t">
+                        <div className="flex justify-between text-red-600 dark:text-red-400 text-lg pt-2 border-t border-gray-200 dark:border-gray-600">
                           <span className="font-bold">Balance Due:</span>
                           <span className="font-bold">
-                        ${calculateBalanceDue(selectedOrderForPayment, partialPayments).toFixed(2)}
-                      </span>
+              ${calculateBalanceDue(selectedOrderForPayment, partialPayments).toFixed(2)}
+            </span>
                         </div>
                       </div>
                     </div>
 
                     {/* Add Payment Form */}
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium mb-2">Add Partial Payment</label>
-                      <div className="flex space-x-2">
-                        <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Enter amount"
-                            value={newPartialPaymentAmount}
-                            onChange={(e) => setNewPartialPaymentAmount(e.target.value)}
-                            className="flex-1"
-                        />
-                        <Button onClick={handleAddPartialPayment}>
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Payment
-                        </Button>
+                    <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <label className="block text-sm font-semibold mb-3 text-gray-900 dark:text-gray-100">Record New Payment</label>
+
+                      <div className="grid grid-cols-2 gap-4 mb-3">
+                        {/* Amount */}
+                        <div>
+                          <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Amount *</label>
+                          <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={newPartialPaymentAmount}
+                              onChange={(e) => setNewPartialPaymentAmount(e.target.value)}
+                              className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
+                          />
+                        </div>
+
+                        {/* Payment Method */}
+                        <div>
+                          <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Payment Method *</label>
+                          <Select value={newPaymentMethod} onValueChange={setNewPaymentMethod}>
+                            <SelectTrigger className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600">
+                              <SelectValue placeholder="Select method" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                              <SelectItem value="Cash" className="text-gray-900 dark:text-gray-100">Cash</SelectItem>
+                              <SelectItem value="Credit Card" className="text-gray-900 dark:text-gray-100">Credit Card</SelectItem>
+                              <SelectItem value="Debit Card" className="text-gray-900 dark:text-gray-100">Debit Card</SelectItem>
+                              <SelectItem value="Check" className="text-gray-900 dark:text-gray-100">Check</SelectItem>
+                              <SelectItem value="Bank Transfer" className="text-gray-900 dark:text-gray-100">Bank Transfer</SelectItem>
+                              <SelectItem value="PayPal" className="text-gray-900 dark:text-gray-100">PayPal</SelectItem>
+                              <SelectItem value="Venmo" className="text-gray-900 dark:text-gray-100">Venmo</SelectItem>
+                              <SelectItem value="Zelle" className="text-gray-900 dark:text-gray-100">Zelle</SelectItem>
+                              <SelectItem value="Other" className="text-gray-900 dark:text-gray-100">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
+
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Payment Date *</label>
+                        <Input
+                            type="date"
+                            value={newPaymentDate}
+                            onChange={(e) => setNewPaymentDate(e.target.value)}
+                            max={new Date().toISOString().split('T')[0]}
+                            className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
+                        />
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Notes (Optional)</label>
+                        <textarea
+                            placeholder="Add any notes about this payment..."
+                            value={newPaymentNotes}
+                            onChange={(e) => setNewPaymentNotes(e.target.value)}
+                            rows={2}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                        />
+                      </div>
+
+                      <Button onClick={handleAddPartialPayment} className="w-full">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Record Payment
+                      </Button>
                     </div>
 
                     {/* Payment History */}
                     <div>
-                      <h3 className="font-semibold mb-3">Payment History</h3>
+                      <h3 className="font-semibold mb-3 text-gray-900 dark:text-gray-100">Payment History</h3>
                       {partialPayments.length === 0 ? (
-                          <p className="text-sm text-gray-500 text-center py-4">No payments recorded yet</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No payments recorded yet</p>
                       ) : (
-                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
                             {partialPayments.map((payment) => (
-                                <div key={payment.id} className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                                  <div>
-                                    <p className="font-semibold text-green-600">${payment.amount.toFixed(2)}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {new Date(payment.paidAt).toLocaleDateString()} at {new Date(payment.paidAt).toLocaleTimeString()}
-                                    </p>
+                                <div key={payment.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-700 hover:shadow-md transition-shadow">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-3 mb-2">
+                              <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                ${payment.amount.toFixed(2)}
+                              </span>
+                                        <Badge variant="outline" className="text-xs border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300">
+                                          {payment.paymentMethod || 'Cash'}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                        <div className="flex items-center">
+                                          <span className="font-medium mr-2">Payment Date:</span>
+                                          <span>{new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-US', {
+                                            weekday: 'short',
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric'
+                                          })}</span>
+                                        </div>
+                                        <div className="flex items-center">
+                                          <span className="font-medium mr-2">Recorded:</span>
+                                          <span className="text-xs">
+                                  {new Date(payment.paidAt).toLocaleDateString()} at {new Date(payment.paidAt).toLocaleTimeString()}
+                                </span>
+                                        </div>
+                                        {payment.notes && (
+                                            <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs italic">
+                                              <span className="font-medium">Note:</span> {payment.notes}
+                                            </div>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                             ))}
@@ -1221,9 +1315,17 @@ export default function OrdersPage() {
                           <div className="space-y-2">
                             {partialPayments.map((payment) => (
                                 <div key={payment.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
-                                  <div>
-                                    <p className="font-semibold text-green-600">${payment.amount.toFixed(2)}</p>
-                                    <p className="text-xs text-gray-500">{new Date(payment.paidAt).toLocaleString()}</p>
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      <p className="font-semibold text-green-600">${payment.amount.toFixed(2)}</p>
+                                      <Badge variant="outline" className="text-xs">{payment.paymentMethod || 'Cash'}</Badge>
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                      {new Date(payment.paymentDate || payment.paidAt).toLocaleDateString()}
+                                    </p>
+                                    {payment.notes && (
+                                        <p className="text-xs text-gray-600 italic mt-1">{payment.notes}</p>
+                                    )}
                                   </div>
                                   <Button size="sm" variant="outline" onClick={() => deletePartialPayment(payment.id)}>
                                     <X className="h-4 w-4" />
@@ -1232,15 +1334,40 @@ export default function OrdersPage() {
                             ))}
                           </div>
                       )}
-                      <div className="flex space-x-2 mt-3">
+
+                      {/* Add payment form in edit modal */}
+                      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="Amount"
+                              value={newPartialPaymentAmount}
+                              onChange={(e) => setNewPartialPaymentAmount(e.target.value)}
+                          />
+                          <Select value={newPaymentMethod} onValueChange={setNewPaymentMethod}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Method" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Cash">Cash</SelectItem>
+                              <SelectItem value="Credit Card">Credit Card</SelectItem>
+                              <SelectItem value="Check">Check</SelectItem>
+                              <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Add payment amount"
-                            value={newPartialPaymentAmount}
-                            onChange={(e) => setNewPartialPaymentAmount(e.target.value)}
+                            type="date"
+                            value={newPaymentDate}
+                            onChange={(e) => setNewPaymentDate(e.target.value)}
+                            max={new Date().toISOString().split('T')[0]}
                         />
-                        <Button onClick={handleAddPartialPayment}>Add Payment</Button>
+                        <Button onClick={handleAddPartialPayment} size="sm" className="w-full">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Payment
+                        </Button>
                       </div>
                     </div>
 
