@@ -51,6 +51,12 @@ export async function POST(req) {
         for (const shopifyProduct of shopifyProducts) {
             const variants = shopifyProduct.variants || []
 
+            // Skip products with no variants
+            if (variants.length === 0) {
+                console.warn(`Product ${shopifyProduct.id} has no variants, skipping...`)
+                continue
+            }
+
             for (const variant of variants) {
                 try {
                     results.total++
@@ -61,6 +67,11 @@ export async function POST(req) {
                         variant,
                         shopifyCategory.id
                     )
+
+                    // Validate required fields
+                    if (!productData.sku || !productData.name) {
+                        throw new Error('Missing required fields: SKU or name')
+                    }
 
                     // Check if product exists by Shopify variant ID or SKU
                     const existingProduct = await prisma.product.findFirst({
@@ -88,18 +99,21 @@ export async function POST(req) {
                             }
                         })
                         results.updated++
+                        console.log(`✓ Updated: ${productData.name} (${productData.sku})`)
                     } else {
                         // Create new product
                         await prisma.product.create({
                             data: productData
                         })
                         results.added++
+                        console.log(`✓ Added: ${productData.name} (${productData.sku})`)
                     }
                 } catch (error) {
-                    console.error(`Error processing variant ${variant.id}:`, error)
+                    console.error(`✗ Error processing variant ${variant.id}:`, error)
                     results.errors.push({
                         productTitle: shopifyProduct.title,
                         variantId: variant.id,
+                        variantTitle: variant.title,
                         error: error.message
                     })
                 }

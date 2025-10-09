@@ -50,7 +50,6 @@ export default function InventoryPage() {
         image: null,
     });
 
-
     const API_BASE = '';
     const [editItem, setEditItem] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
@@ -157,7 +156,6 @@ export default function InventoryPage() {
             setPreviewImage(null)
         } catch (error) {
             console.error('Failed to add item:', error);
-            alert('Failed to add item. Please try again.');
         }
     };
 
@@ -198,7 +196,6 @@ export default function InventoryPage() {
             setPreviewImage(null);
         } catch (error) {
             console.error(error);
-            alert("Failed to update item");
         }
     };
 
@@ -256,7 +253,7 @@ export default function InventoryPage() {
 
                     // If deducting, ensure adjustmentVal <= currentStock
                     if (adjustmentType === "deduct" && adjustmentVal > item.currentStock) {
-                        alert(`Cannot deduct more than available stock (${item.currentStock}) for ${item.name}`);
+                        console.error(`Cannot deduct more than available stock (${item.currentStock}) for ${item.name}`);
                         return item; // Disallow excess deduction
                     }
                 }
@@ -312,10 +309,8 @@ export default function InventoryPage() {
             setProductSearch('');
             setAdjustmentReason('');
             setShowStockAdjustmentModal(false);
-            alert('Stock adjustments completed successfully!');
         } catch (error) {
             console.error('Error adjusting stock:', error);
-            alert('Error adjusting stock. Please try again.');
         }
     };
 
@@ -428,9 +423,9 @@ export default function InventoryPage() {
                                                         <div className="flex items-start justify-between">
                                                             <div className="flex items-start space-x-4 flex-1">
                                                                 <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
-                                                                    {product.image ? (
+                                                                    {(product.shopifyImageUrl || product.image) ? (
                                                                         <img
-                                                                            src={`${API_BASE}${product.image}`}
+                                                                            src={product.shopifyImageUrl || `${API_BASE}${product.image}`}
                                                                             alt={product.name}
                                                                             className="w-full h-full object-cover"
                                                                             onError={(e) => {
@@ -628,6 +623,8 @@ export default function InventoryPage() {
                                         className="px-8 py-3"
                                     >
                                         <Clipboard className="mr-2 h-4 w-4" />
+                                        
+                                        
                                         Apply Stock Adjustments
                                     </Button>
                                 </div>
@@ -898,7 +895,25 @@ export default function InventoryPage() {
                                 <tbody>
                                 {filteredInventoryItems.map((item, index) => (
                                     <tr key={index} className="border-b hover:bg-muted/50">
-                                        <td className="py-3 px-4 text-foreground">{item.name}</td>
+                                        <td className="py-3 px-4">
+                                            <div className="flex items-center space-x-3">
+                                                <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                    {(item.shopifyImageUrl || item.image) ? (
+                                                        <img
+                                                            src={item.shopifyImageUrl || `${API_BASE}${item.image}`}
+                                                            alt={item.name}
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <Package className="h-5 w-5 text-gray-400" />
+                                                    )}
+                                                </div>
+                                                <span className="text-foreground font-medium">{item.name}</span>
+                                            </div>
+                                        </td>
                                         <td className="py-3 px-4 text-muted-foreground">{item.category?.name}</td>
                                         <td className="py-3 px-4">
                                             <div className="flex items-center">
@@ -958,7 +973,6 @@ export default function InventoryPage() {
                                                                     await refresh();
                                                                 } catch (err) {
                                                                     console.error(err);
-                                                                    alert("Failed to delete product");
                                                                 }
                                                             }
                                                         }}
