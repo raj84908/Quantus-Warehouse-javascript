@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { Sun, Moon, Monitor, SettingsIcon, Palette, FileText, Upload, Image } from "lucide-react"
+import { Sun, Moon, Monitor, SettingsIcon, Palette, FileText, Upload, Image, ShoppingBag, CheckCircle, XCircle, Loader2 } from "lucide-react"
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
@@ -54,9 +54,22 @@ export default function SettingsPage() {
   const [logoPreview, setLogoPreview] = useState(null)
   const [isLoadingInvoiceSettings, setIsLoadingInvoiceSettings] = useState(false)
 
-  // Load invoice settings on component mount
+  // Shopify integration state
+  const [shopifyConnection, setShopifyConnection] = useState(null)
+  const [shopifyCredentials, setShopifyCredentials] = useState({
+    shopDomain: "",
+    accessToken: "",
+    apiKey: "",
+    apiSecret: ""
+  })
+  const [isTestingConnection, setIsTestingConnection] = useState(false)
+  const [isSavingShopify, setIsSavingShopify] = useState(false)
+  const [connectionTestResult, setConnectionTestResult] = useState(null)
+
+  // Load invoice settings and Shopify connection on component mount
   useEffect(() => {
     loadInvoiceSettings()
+    loadShopifyConnection()
   }, [])
 
   const loadInvoiceSettings = async () => {
@@ -127,6 +140,109 @@ export default function SettingsPage() {
   const handleSaveAppearance = () => {
     console.log("Saved appearance settings:", { theme, language, compactMode })
     alert("Appearance settings saved ✅")
+  }
+
+  // Load Shopify connection
+  const loadShopifyConnection = async () => {
+    try {
+      const response = await fetch('/api/shopify/connection')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.isConnected && data.connection) {
+          setShopifyConnection(data.connection)
+          setShopifyCredentials({
+            shopDomain: data.connection.shopDomain || "",
+            accessToken: data.connection.accessToken || "",
+            apiKey: data.connection.apiKey || "",
+            apiSecret: data.connection.apiSecret || ""
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error loading Shopify connection:', error)
+    }
+  }
+
+  // Test Shopify connection
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true)
+    setConnectionTestResult(null)
+
+    try {
+      const response = await fetch('/api/shopify/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shopDomain: shopifyCredentials.shopDomain,
+          accessToken: shopifyCredentials.accessToken
+        })
+      })
+
+      const data = await response.json()
+      setConnectionTestResult(data)
+    } catch (error) {
+      console.error('Error testing connection:', error)
+      setConnectionTestResult({
+        success: false,
+        error: error.message
+      })
+    } finally {
+      setIsTestingConnection(false)
+    }
+  }
+
+  // Save Shopify connection
+  const handleSaveShopifyConnection = async () => {
+    setIsSavingShopify(true)
+
+    try {
+      const response = await fetch('/api/shopify/connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shopifyCredentials)
+      })
+
+      if (response.ok) {
+        alert('Shopify connected successfully! ✅')
+        await loadShopifyConnection()
+      } else {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to save connection')
+      }
+    } catch (error) {
+      console.error('Error saving Shopify connection:', error)
+      alert(`Failed to save connection: ${error.message}`)
+    } finally {
+      setIsSavingShopify(false)
+    }
+  }
+
+  // Disconnect Shopify
+  const handleDisconnectShopify = async () => {
+    if (!confirm('Are you sure you want to disconnect Shopify? This will not delete synced products.')) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/shopify/connection', {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        alert('Shopify disconnected successfully')
+        setShopifyConnection(null)
+        setShopifyCredentials({
+          shopDomain: "",
+          accessToken: "",
+          apiKey: "",
+          apiSecret: ""
+        })
+        setConnectionTestResult(null)
+      }
+    } catch (error) {
+      console.error('Error disconnecting Shopify:', error)
+      alert('Failed to disconnect Shopify')
+    }
   }
 
   const settingsTabs = [
@@ -538,8 +654,225 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* Integrations Tab */}
+        {activeTab === "Integrations" && (
+          <div className="grid grid-cols-1 gap-6">
+            {/* Shopify Integration Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-[#95BF47] rounded-lg flex items-center justify-center">
+                      <ShoppingBag className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        Shopify Integration
+                        {shopifyConnection?.isConnected && (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        {shopifyConnection?.isConnected
+                          ? `Connected to ${shopifyConnection.shopDomain}`
+                          : 'Connect your Shopify store to sync inventory'}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {shopifyConnection?.isConnected && (
+                    <Button variant="destructive" onClick={handleDisconnectShopify}>
+                      Disconnect
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Connection Status */}
+                {shopifyConnection?.lastSyncAt && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
+                      <CheckCircle className="h-5 w-5" />
+                      <span className="font-medium">Connected</span>
+                    </div>
+                    <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                      Last synced: {new Date(shopifyConnection.lastSyncAt).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Shop Domain */}
+                <div className="space-y-2">
+                  <Label htmlFor="shopDomain">Shop Domain *</Label>
+                  <Input
+                    id="shopDomain"
+                    placeholder="your-store.myshopify.com"
+                    value={shopifyCredentials.shopDomain}
+                    onChange={(e) => setShopifyCredentials(prev => ({
+                      ...prev,
+                      shopDomain: e.target.value
+                    }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your Shopify store domain (e.g., my-store.myshopify.com)
+                  </p>
+                </div>
+
+                {/* Access Token */}
+                <div className="space-y-2">
+                  <Label htmlFor="accessToken">Admin API Access Token *</Label>
+                  <Input
+                    id="accessToken"
+                    type="password"
+                    placeholder="shpat_xxxxxxxxxxxxxxxxxxxxx"
+                    value={shopifyCredentials.accessToken}
+                    onChange={(e) => setShopifyCredentials(prev => ({
+                      ...prev,
+                      accessToken: e.target.value
+                    }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Create a custom app in your Shopify admin to get this token
+                  </p>
+                </div>
+
+                {/* API Key (Optional) */}
+                <div className="space-y-2">
+                  <Label htmlFor="apiKey">API Key (Optional)</Label>
+                  <Input
+                    id="apiKey"
+                    placeholder="Enter API key"
+                    value={shopifyCredentials.apiKey}
+                    onChange={(e) => setShopifyCredentials(prev => ({
+                      ...prev,
+                      apiKey: e.target.value
+                    }))}
+                  />
+                </div>
+
+                {/* API Secret (Optional) */}
+                <div className="space-y-2">
+                  <Label htmlFor="apiSecret">API Secret (Optional)</Label>
+                  <Input
+                    id="apiSecret"
+                    type="password"
+                    placeholder="Enter API secret"
+                    value={shopifyCredentials.apiSecret}
+                    onChange={(e) => setShopifyCredentials(prev => ({
+                      ...prev,
+                      apiSecret: e.target.value
+                    }))}
+                  />
+                </div>
+
+                {/* Connection Test Result */}
+                {connectionTestResult && (
+                  <div className={`rounded-lg p-4 ${
+                    connectionTestResult.success
+                      ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                      : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      {connectionTestResult.success ? (
+                        <>
+                          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="font-medium text-green-800 dark:text-green-200">
+                              Connection Successful!
+                            </p>
+                            <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                              Shop: {connectionTestResult.shopName}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="font-medium text-red-800 dark:text-red-200">
+                              Connection Failed
+                            </p>
+                            <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                              {connectionTestResult.error}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={handleTestConnection}
+                    disabled={!shopifyCredentials.shopDomain || !shopifyCredentials.accessToken || isTestingConnection}
+                  >
+                    {isTestingConnection ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      'Test Connection'
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleSaveShopifyConnection}
+                    disabled={!shopifyCredentials.shopDomain || !shopifyCredentials.accessToken || isSavingShopify}
+                  >
+                    {isSavingShopify ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      shopifyConnection?.isConnected ? 'Update Connection' : 'Connect Shopify'
+                    )}
+                  </Button>
+                </div>
+
+                {/* Setup Instructions */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Setup Instructions</h4>
+                  <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
+                    <li>Go to your Shopify admin → Settings → Apps and sales channels</li>
+                    <li>Click "Develop apps" → "Create an app"</li>
+                    <li>Configure Admin API scopes: read_products, read_inventory</li>
+                    <li>Install the app and copy the Admin API access token</li>
+                    <li>Paste your credentials above and click "Test Connection"</li>
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Other Integrations Placeholder */}
+            <Card>
+              <CardHeader>
+                <CardTitle>More Integrations Coming Soon</CardTitle>
+                <CardDescription>
+                  We're working on adding more integrations to help you manage your warehouse.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {['WooCommerce', 'Amazon', 'eBay', 'BigCommerce'].map((platform) => (
+                    <div
+                      key={platform}
+                      className="border rounded-lg p-4 text-center opacity-50"
+                    >
+                      <p className="text-sm font-medium">{platform}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Coming Soon</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Other tabs content */}
-        {activeTab !== "General" && activeTab !== "Invoice" && (
+        {activeTab !== "General" && activeTab !== "Invoice" && activeTab !== "Integrations" && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>{activeTab} Settings</CardTitle>

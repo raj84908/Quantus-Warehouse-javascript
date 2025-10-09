@@ -32,6 +32,10 @@ model Product {
   status           Status            @default(IN_STOCK)
   lastUpdated      DateTime          @updatedAt
   image            String?
+  shopifyProductId String?           @unique // Shopify product ID
+  shopifyVariantId String?           @unique // Shopify variant ID
+  shopifyImageUrl  String?                   // Shopify CDN image URL
+  syncedFromShopify Boolean          @default(false) // Flag for Shopify products
   orderItems       OrderItem[]
   category         Category          @relation(fields: [categoryId], references: [id])
   stockAdjustments StockAdjustment[]
@@ -163,6 +167,18 @@ model InvoiceSettings {
   @@map("invoice_settings")
 }
 
+
+model ShopifyConnection {
+  id           Int       @id @default(autoincrement())
+  shopDomain   String    // e.g., your-store.myshopify.com
+  apiKey       String?
+  apiSecret    String?
+  accessToken  String    // Admin API access token
+  isConnected  Boolean   @default(true)
+  lastSyncAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
 
 enum Status {
   IN_STOCK
