@@ -1,0 +1,731 @@
+// ========================================
+// QUANTUS WAREHOUSE - MULTI-TENANT SCHEMA
+// ========================================
+// This is the OPTIMIZED schema for multi-tenant support
+// To migrate: Backup current DB, then gradually migrate models
+// ========================================
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================================
+// CORE MULTI-TENANCY MODELS
+// ========================================
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique // URL-friendly name (e.g., "acme-corp")
+  domain          String?  @unique // Custom domain (e.g., "acme.com")
+  subdomain       String?  @unique // Subdomain (e.g., "acme.quantus.app")
+
+  // Subscription & Billing
+  plan            Plan     @default(FREE)
+  subscriptionStatus String @default("trial") // trial, active, past_due, canceled
+  trialEndsAt     DateTime?
+  subscriptionEndsAt DateTime?
+  stripeCustomerId String? @unique
+  stripeSubscriptionId String? @unique
+
+  // Branding & Settings
+  logo            String?  // URL or base64
+  primaryColor    String   @default("#8B5A3C")
+  secondaryColor  String   @default("#F5F5F5")
+  timezone        String   @default("UTC")
+  currency        String   @default("USD")
+  dateFormat      String   @default("MM/DD/YYYY")
+
+  // Company Info
+  companyEmail    String?
+  companyPhone    String?
+  companyAddress  String?
+  taxId           String?  // VAT, EIN, etc.
+
+  // Usage Limits (based on plan)
+  maxUsers        Int      @default(5)
+  maxProducts     Int      @default(1000)
+  maxOrders       Int      @default(5000)
+  storageLimit    Int      @default(1048576) // 1GB in KB
+
+  // Feature Flags
+  features        String[] @default([]) // ["advanced_analytics", "two_way_sync", "webhooks"]
+
+  // Relationships
+  users           User[]
+  products        Product[]
+  orders          Order[]
+  categories      Category[]
+  shopifyConnections ShopifyConnection[]
+  reports         Report[]
+  invoiceSettings InvoiceSettings?
+  people          People[]
+  auditLogs       AuditLog[]
+
+  // Metadata
+  metadata        Json?    // Flexible field for custom data
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([slug])
+  @@index([subdomain])
+  @@index([plan])
+  @@index([subscriptionStatus])
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String
+  password        String   // Hashed with bcrypt (cost factor 12)
+  name            String
+  avatar          String?
+
+  // Organization relationship
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Role & Permissions
+  role            Role     @default(MEMBER)
+  permissions     String[] @default([]) // Custom permissions per user
+
+  // Profile
+  phone           String?
+  department      String?
+  position        String?
+  employeeId      String?
+  bio             String?
+
+  // Security
+  emailVerified   Boolean  @default(false)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  lastLoginIp     String?
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret String?
+
+  // Preferences
+  language        String   @default("en")
+  notifications   Json?    // Notification preferences
+
+  // Relationships
+  createdOrders   Order[]  @relation("CreatedBy")
+  auditLogs       AuditLog[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([email, organizationId])
+  @@index([organizationId])
+  @@index([email])
+  @@index([role])
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+  CUSTOM
+}
+
+enum Role {
+  OWNER       // Full access, billing management
+  ADMIN       // Full access except billing
+  MANAGER     // Can manage inventory, orders, reports
+  MEMBER      // View-only access
+  WAREHOUSE   // Can manage inventory and shipments
+  SALES       // Can create and manage orders
+  READONLY    // Read-only across all modules
+}
+
+// ========================================
+// PRODUCT MANAGEMENT
+// ========================================
+
+model Product {
+  id               Int      @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Core fields
+  sku              String
+  name             String
+  description      String?  @db.Text
+  categoryId       Int
+  stock            Int
+  minStock         Int      @default(0)
+  maxStock         Int?     // Maximum stock level
+  location         String
+  value            Float    // Unit price/value
+  cost             Float?   // Cost price (for profit calculations)
+
+  // Status
+  status           Status   @default(IN_STOCK)
+  isActive         Boolean  @default(true)
+
+  // Images & Media
+  image            String?
+  images           String[] @default([]) // Multiple images
+
+  // Shopify Integration
+  shopifyProductId String?
+  shopifyVariantId String?
+  shopifyImageUrl  String?
+  syncedFromShopify Boolean @default(false)
+  lastSyncedAt     DateTime?
+
+  // Additional attributes
+  barcode          String?
+  weight           Float?
+  dimensions       Json?    // {length, width, height, unit}
+  tags             String[] @default([])
+
+  // Supplier info
+  supplier         String?
+  supplierSku      String?
+
+  // Timestamps
+  lastRestocked    DateTime?
+  lastSold         DateTime?
+  createdAt        DateTime @default(now())
+  lastUpdated      DateTime @updatedAt
+
+  // Relationships
+  category         Category @relation(fields: [categoryId], references: [id])
+  orderItems       OrderItem[]
+  stockAdjustments StockAdjustment[]
+
+  @@unique([sku, organizationId])
+  @@unique([shopifyProductId, organizationId])
+  @@unique([shopifyVariantId, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, categoryId])
+  @@index([organizationId, status])
+  @@index([organizationId, syncedFromShopify])
+  @@index([organizationId, name]) // For search
+  @@index([organizationId, sku]) // For search
+  @@index([barcode])
+  @@index([lastUpdated])
+}
+
+model Category {
+  id           Int      @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String?
+  icon         String?
+  color        String?
+  parentId     Int?     // For nested categories
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+
+  // Relationships
+  products     Product[]
+  parent       Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     Category[] @relation("CategoryHierarchy")
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([name, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, parentId])
+  @@index([organizationId, isActive])
+}
+
+model StockAdjustment {
+  id            Int      @id @default(autoincrement())
+
+  // Multi-tenancy (derived from product)
+  productId     Int
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity      Int      // Positive for additions, negative for deductions
+  previousStock Int
+  newStock      Int
+  reason        String
+  notes         String?
+  adjustedBy    String   // User who made the adjustment
+
+  // Reference tracking
+  referenceType String?  // "order", "return", "damage", "recount", etc.
+  referenceId   String?  // ID of related order/return/etc.
+
+  createdAt     DateTime @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
+  @@index([reason])
+}
+
+enum Status {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+// ========================================
+// ORDER MANAGEMENT
+// ========================================
+
+model Order {
+  id             Int      @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  orderId        String   // Display ID (e.g., "ORD-001")
+
+  // Customer info
+  customer       String
+  email          String
+  phone          String?
+
+  // Addresses
+  shippingAddress String?
+  billingAddress  String?
+
+  // Financial
+  subtotal       Float
+  tax            Float    @default(0)
+  shipping       Float    @default(0)
+  discount       Float    @default(0)
+  total          Float
+
+  // Payment
+  paymentStatus  PaymentStatus @default(PENDING)
+  paymentMethod  String?
+  paidAmount     Float    @default(0)
+
+  // Order details
+  status         OrderStatus   @default(PENDING)
+  priority       OrderPriority @default(NORMAL)
+  dueDate        DateTime?
+  completedAt    DateTime?
+
+  // Assignment & tracking
+  assignedTo     String?
+  trackingNumber String?
+
+  // Source
+  source         OrderSource @default(MANUAL) // MANUAL, SHOPIFY, API, etc.
+  externalId     String?  // External order ID (e.g., Shopify order ID)
+
+  // Creator
+  createdById    String?
+  createdBy      User?    @relation("CreatedBy", fields: [createdById], references: [id])
+
+  // Metadata
+  notes          String?  @db.Text
+  internalNotes  String?  @db.Text
+  tags           String[] @default([])
+
+  // Relationships
+  items          OrderItem[]
+  partialPayments PartialPayment[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([orderId, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, paymentStatus])
+  @@index([organizationId, customer])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, dueDate])
+  @@index([externalId])
+  @@index([createdById])
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+
+  sku       String
+  name      String
+  price     Float
+  quantity  Int
+  discount  Float    @default(0)
+  tax       Float    @default(0)
+  subtotal  Float    // (price * quantity) - discount + tax
+
+  // References
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  // Additional info
+  notes     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([sku])
+}
+
+model PartialPayment {
+  id            Int      @id @default(autoincrement())
+
+  orderId       Int
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  amount        Float
+  paymentMethod String   @default("Cash")
+  paymentDate   DateTime @default(now())
+  paidAt        DateTime @default(now())
+  notes         String?
+
+  // Payment proof
+  receiptUrl    String?
+  transactionId String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([paymentDate])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  ON_HOLD
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum OrderPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum OrderSource {
+  MANUAL
+  SHOPIFY
+  API
+  IMPORT
+  POS
+}
+
+// ========================================
+// SHOPIFY INTEGRATION
+// ========================================
+
+model ShopifyConnection {
+  id           Int      @id @default(autoincrement())
+
+  // Multi-tenancy (one connection per organization)
+  organizationId String  @unique
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Credentials
+  shopDomain   String   // e.g., your-store.myshopify.com
+  apiKey       String?
+  apiSecret    String?
+  accessToken  String   // Encrypted in production
+
+  // Status
+  isConnected  Boolean  @default(true)
+  isActive     Boolean  @default(true)
+
+  // Sync settings
+  autoSync     Boolean  @default(false)
+  syncFrequency Int?    // Minutes between syncs
+  lastSyncAt   DateTime?
+  lastSyncStatus String? // "success", "failed", "partial"
+  lastSyncError  String? @db.Text
+
+  // Statistics
+  totalProductsSynced Int @default(0)
+  totalOrdersSynced   Int @default(0)
+  syncCount          Int @default(0)
+
+  // Sync preferences
+  syncProducts Boolean  @default(true)
+  syncOrders   Boolean  @default(false)
+  syncCustomers Boolean @default(false)
+  twoWaySync   Boolean  @default(false) // Sync changes back to Shopify
+
+  // Webhook
+  webhookId    String?
+  webhookAddress String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([isActive])
+  @@index([lastSyncAt])
+}
+
+model ShopifySyncLog {
+  id             Int      @id @default(autoincrement())
+
+  organizationId String
+
+  syncType       String   // "products", "orders", "customers"
+  status         String   // "success", "failed", "partial"
+
+  itemsProcessed Int      @default(0)
+  itemsSucceeded Int      @default(0)
+  itemsFailed    Int      @default(0)
+
+  errors         Json?    // Array of error objects
+  duration       Int?     // Milliseconds
+
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@index([organizationId])
+  @@index([syncType])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// ========================================
+// PEOPLE & STAFF MANAGEMENT
+// ========================================
+
+model People {
+  id          Int       @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name        String
+  email       String
+  phone       String?
+  department  String?
+  position    String?
+  status      String    @default("Active")
+  hireDate    DateTime?
+  performance String?
+
+  // Type: employee, customer, supplier, vendor
+  type        String
+
+  // Additional fields
+  company     String?
+  address     String?
+  notes       String?   @db.Text
+  tags        String[]  @default([])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([email, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, type])
+  @@index([organizationId, status])
+}
+
+// ========================================
+// REPORTING & ANALYTICS
+// ========================================
+
+model Report {
+  id          Int      @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  category    String   // "sales", "inventory", "shopify", "financial"
+  type        String   // "pdf", "excel", "csv"
+
+  // File info
+  format      String
+  filePath    String
+  fileUrl     String?
+  size        Int      // Bytes
+
+  // Parameters
+  timeRange   String
+  filters     Json?
+
+  // Status
+  status      String   @default("completed") // "pending", "processing", "completed", "failed"
+
+  // Generated by
+  generatedBy String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, category])
+  @@index([organizationId, createdAt])
+  @@index([status])
+}
+
+// ========================================
+// INVOICE SETTINGS
+// ========================================
+
+model InvoiceSettings {
+  id              Int      @id @default(autoincrement())
+
+  // Multi-tenancy (one setting per organization)
+  organizationId  String   @unique
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Company branding (can inherit from Organization)
+  companyName     String   @default("Your Company")
+  companyEmail    String?
+  companyPhone    String?
+  companyAddress  String?
+  logo            String?
+
+  // Colors
+  primaryColor    String   @default("#8B5A3C")
+  secondaryColor  String   @default("#F5F5F5")
+  textColor       String   @default("#FFFFFF")
+
+  // Invoice text
+  invoiceComments String?  @default("Thank you for your business!") @db.Text
+  paymentMethods  String?  @default("Bank Transfer, PayPal, Check") @db.Text
+  termsAndConditions String? @db.Text
+
+  // Numbering
+  invoicePrefix   String   @default("INV")
+  nextInvoiceNumber Int    @default(1)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+// ========================================
+// AUDIT & SECURITY
+// ========================================
+
+model AuditLog {
+  id             String   @id @default(cuid())
+
+  // Multi-tenancy
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Actor
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  userEmail      String?
+  userIp         String?
+
+  // Action
+  action         String   // "create", "update", "delete", "login", "logout", etc.
+  resource       String   // "product", "order", "user", "settings", etc.
+  resourceId     String?
+
+  // Changes
+  oldValue       Json?
+  newValue       Json?
+
+  // Context
+  userAgent      String?
+  metadata       Json?
+
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+// ========================================
+// NOTIFICATIONS
+// ========================================
+
+model Notification {
+  id             String   @id @default(cuid())
+
+  userId         String
+
+  title          String
+  message        String   @db.Text
+  type           String   // "info", "warning", "error", "success"
+  category       String   // "order", "inventory", "system", "shopify"
+
+  // Link
+  actionUrl      String?
+
+  // Status
+  read           Boolean  @default(false)
+  readAt         DateTime?
+
+  // Metadata
+  metadata       Json?
+
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+// ========================================
+// WEBHOOKS (for extensibility)
+// ========================================
+
+model Webhook {
+  id             String   @id @default(cuid())
+
+  // Multi-tenancy
+  organizationId String
+
+  name           String
+  url            String
+  events         String[] // ["order.created", "product.updated", etc.]
+  secret         String   // For signature verification
+
+  isActive       Boolean  @default(true)
+
+  // Statistics
+  lastTriggeredAt DateTime?
+  totalCalls      Int      @default(0)
+  failedCalls     Int      @default(0)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([isActive])
+}
