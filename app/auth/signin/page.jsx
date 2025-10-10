@@ -1,14 +1,14 @@
 'use client'
 
 import { signIn } from 'next-auth/react'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
@@ -132,5 +132,17 @@ export default function SignInPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="text-center">Loading...</div>
+      </div>
+    }>
+      <SignInForm />
+    </Suspense>
   )
 }
