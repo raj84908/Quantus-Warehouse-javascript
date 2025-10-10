@@ -46,6 +46,11 @@ export function Sidebar() {
     await signOut({ callbackUrl: '/auth/signin' })
   }
 
+  // Hide sidebar on auth pages
+  if (pathname?.startsWith('/auth')) {
+    return null
+  }
+
   return (
     <>
       {/* Mobile menu button */}
