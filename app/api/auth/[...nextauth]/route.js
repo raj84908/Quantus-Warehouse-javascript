@@ -28,6 +28,16 @@ export const authOptions = {
           throw new Error('Invalid email or password')
         }
 
+        // SECURITY: Check if organization is suspended
+        if (user.organization.isSuspended) {
+          throw new Error('Your organization has been suspended. Please contact support.')
+        }
+
+        // SECURITY: Check if organization is active
+        if (!user.organization.isActive) {
+          throw new Error('Your organization is inactive. Please contact support.')
+        }
+
         // Check password
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
@@ -89,7 +99,7 @@ export const authOptions = {
     signIn: '/auth/signin',
     error: '/auth/error',
   },
-  secret: process.env.NEXTAUTH_SECRET || 'your-secret-key-change-in-production'
+  secret: process.env.NEXTAUTH_SECRET
 }
 
 const handler = NextAuth(authOptions)

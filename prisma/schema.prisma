@@ -16,9 +16,13 @@ model Organization {
   name            String
   slug            String   @unique
 
-  // Subscription
-  plan            String   @default("FREE") // FREE, STARTER, PRO, ENTERPRISE
+  // Subscription - Single plan only
+  plan            String   @default("STANDARD") // Only STANDARD plan
   isActive        Boolean  @default(true)
+  isSuspended     Boolean  @default(false)
+
+  // Access key used for signup
+  accessKeyUsed   String?
 
   // Branding
   logo            String?
@@ -38,6 +42,7 @@ model Organization {
   updatedAt       DateTime @updatedAt
 
   @@index([slug])
+  @@index([accessKeyUsed])
 }
 
 model AuthUser {
@@ -63,6 +68,39 @@ model AuthUser {
 
   @@index([organizationId])
   @@index([email])
+}
+
+// Super Admin for managing all organizations
+model SuperAdmin {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  password        String   // Hashed with bcrypt
+  name            String
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([email])
+}
+
+// Access keys for signup
+model AccessKey {
+  id              String   @id @default(cuid())
+  key             String   @unique  // The actual access key
+  isActive        Boolean  @default(true)
+  maxUses         Int?     // null = unlimited
+  currentUses     Int      @default(0)
+  expiresAt       DateTime?
+
+  // Metadata
+  createdBy       String?  // Admin who created it
+  notes           String?  // Purpose or description
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([key])
+  @@index([isActive])
 }
 
 model StockAdjustment {

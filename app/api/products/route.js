@@ -36,6 +36,21 @@ export const POST = withAuth(async (request, { user }) => {
             )
         }
 
+        // SECURITY: Verify category belongs to user's organization
+        const category = await prisma.category.findFirst({
+            where: {
+                id: data.categoryId,
+                organizationId: user.organizationId
+            }
+        })
+
+        if (!category) {
+            return NextResponse.json(
+                { error: 'Invalid category or category does not belong to your organization' },
+                { status: 403 }
+            )
+        }
+
         // Check if SKU already exists in this organization
         const existingProduct = await prisma.product.findFirst({
             where: {

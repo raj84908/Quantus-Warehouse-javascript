@@ -1,25 +1,72 @@
 import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcrypt'
+import { signupSchema, validate, checkRateLimit, sanitizeObject } from '@/lib/validation'
 
 const prisma = new PrismaClient()
 
 export async function POST(request) {
   try {
     const body = await request.json()
-    const { name, email, password, organizationName, plan } = body
 
-    // Validation
-    if (!name || !email || !password || !organizationName) {
+    // SECURITY: Rate limiting (10 signups per IP per hour)
+    const clientIp = request.headers.get('x-forwarded-for') ||
+                     request.headers.get('x-real-ip') ||
+                     'unknown'
+    const rateLimit = checkRateLimit(`signup:${clientIp}`, 10, 3600000)
+
+    if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: `Too many signup attempts. Please try again in ${rateLimit.resetIn} seconds.` },
+        { status: 429 }
+      )
+    }
+
+    // SECURITY: Sanitize input to prevent XSS
+    const sanitizedBody = sanitizeObject(body)
+    const { name, email, password, organizationName, accessKey } = sanitizedBody
+
+    // SECURITY: Validate input with Zod schema
+    const validation = validate(signupSchema, sanitizedBody)
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: 'Validation failed',
+          details: validation.errors
+        },
         { status: 400 }
       )
     }
 
-    if (password.length < 8) {
+    // Validate access key
+    const validKey = await prisma.accessKey.findUnique({
+      where: { key: accessKey }
+    })
+
+    if (!validKey) {
       return NextResponse.json(
-        { error: 'Password must be at least 8 characters' },
+        { error: 'Invalid access key' },
+        { status: 400 }
+      )
+    }
+
+    if (!validKey.isActive) {
+      return NextResponse.json(
+        { error: 'This access key has been deactivated' },
+        { status: 400 }
+      )
+    }
+
+    if (validKey.expiresAt && new Date(validKey.expiresAt) < new Date()) {
+      return NextResponse.json(
+        { error: 'This access key has expired' },
+        { status: 400 }
+      )
+    }
+
+    if (validKey.maxUses && validKey.currentUses >= validKey.maxUses) {
+      return NextResponse.json(
+        { error: 'This access key has reached its usage limit' },
         { status: 400 }
       )
     }
@@ -61,8 +108,9 @@ export async function POST(request) {
         data: {
           name: organizationName,
           slug: finalSlug,
-          plan: plan || 'STARTER',
-          isActive: true
+          plan: 'STANDARD', // Single plan only
+          isActive: true,
+          accessKeyUsed: accessKey
         }
       })
 
@@ -76,6 +124,12 @@ export async function POST(request) {
           role: 'OWNER',
           emailVerified: false
         }
+      })
+
+      // Increment access key usage
+      await tx.accessKey.update({
+        where: { key: accessKey },
+        data: { currentUses: { increment: 1 } }
       })
 
       return { organization, user }

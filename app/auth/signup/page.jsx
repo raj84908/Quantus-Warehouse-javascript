@@ -17,7 +17,7 @@ export default function SignUpPage() {
     password: '',
     confirmPassword: '',
     organizationName: '',
-    plan: 'STARTER' // Default to paid plan
+    accessKey: '' // Required access key
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -184,24 +184,22 @@ export default function SignUpPage() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="plan" className="text-sm font-medium">
-                Plan
+              <label htmlFor="accessKey" className="text-sm font-medium">
+                Access Key
               </label>
-              <Select
-                value={formData.plan}
-                onValueChange={(value) => setFormData({ ...formData, plan: value })}
+              <Input
+                id="accessKey"
+                name="accessKey"
+                type="text"
+                placeholder="Enter your access key"
+                value={formData.accessKey}
+                onChange={handleChange}
+                required
                 disabled={loading}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FREE">Free - Trial (Limited features)</SelectItem>
-                  <SelectItem value="STARTER">Starter - $29/month</SelectItem>
-                  <SelectItem value="PRO">Professional - $99/month</SelectItem>
-                  <SelectItem value="ENTERPRISE">Enterprise - Contact us</SelectItem>
-                </SelectContent>
-              </Select>
+              />
+              <p className="text-xs text-muted-foreground">
+                Contact administrator to get an access key
+              </p>
             </div>
 
             <Button
