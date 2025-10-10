@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { signupSchema, validate, checkRateLimit, sanitizeObject } from '@/lib/validation'
 
 const prisma = new PrismaClient()
