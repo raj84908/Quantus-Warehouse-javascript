@@ -99,7 +99,9 @@ export const authOptions = {
     signIn: '/auth/signin',
     error: '/auth/error',
   },
-  secret: process.env.NEXTAUTH_SECRET
+  secret: process.env.NEXTAUTH_SECRET,
+  // Explicitly set the URL for production deployments
+  ...(process.env.NEXTAUTH_URL && { url: process.env.NEXTAUTH_URL })
 }
 
 const handler = NextAuth(authOptions)
