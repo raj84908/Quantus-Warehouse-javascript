@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma'
-// Get all orders
-export async function GET() {
+import { withAuth } from '@/lib/auth'
+
+// Get all orders (filtered by organization)
+export const GET = withAuth(async (request, { user }) => {
     try {
         const orders = await prisma.order.findMany({
+            where: {
+                organizationId: user.organizationId
+            },
             include: {
                 items: true
             },
@@ -11,7 +16,7 @@ export async function GET() {
                 createdAt: 'desc'
             }
         });
-        
+
         return NextResponse.json(orders);
     } catch (error) {
         console.error("Error fetching orders:", error);
@@ -20,13 +25,13 @@ export async function GET() {
             { status: 500 }
         );
     }
-}
+})
 
 // Create a new order
-export async function POST(req) {
+export const POST = withAuth(async (req, { user }) => {
     try {
         const data = await req.json();
-        
+
         // Create the order record with its items
         const order = await prisma.order.create({
             data: {
@@ -41,6 +46,7 @@ export async function POST(req) {
                 priority: data.priority,
                 dueDate: data.dueDate,
                 assignedTo: data.assignedTo,
+                organizationId: user.organizationId,
                 items: {
                     create: data.items.map(item => ({
                         sku: item.sku,
@@ -59,9 +65,12 @@ export async function POST(req) {
         // Update inventory quantities for each item in the order
         for (const item of data.items) {
             try {
-                // Find the product by SKU
-                const product = await prisma.product.findUnique({
-                    where: { sku: item.sku }
+                // Find the product by SKU in this organization
+                const product = await prisma.product.findFirst({
+                    where: {
+                        sku: item.sku,
+                        organizationId: user.organizationId
+                    }
                 });
                 
                 if (product) {
@@ -106,4 +115,4 @@ export async function POST(req) {
             { status: 500 }
         );
     }
-}
+})

@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-// GET - Retrieve Shopify connection status and credentials
-export async function GET() {
+// GET - Retrieve Shopify connection status and credentials (filtered by organization)
+export const GET = withAuth(async (request, { user }) => {
     try {
         const connection = await prisma.shopifyConnection.findFirst({
+            where: {
+                organizationId: user.organizationId
+            },
             orderBy: { createdAt: 'desc' }
         })
 
@@ -15,7 +19,7 @@ export async function GET() {
             })
         }
 
-        // Return connection data without sensitive info in some cases
+        // Return connection data
         return NextResponse.json({
             isConnected: connection.isConnected,
             connection: {
@@ -24,7 +28,6 @@ export async function GET() {
                 lastSyncAt: connection.lastSyncAt,
                 createdAt: connection.createdAt,
                 updatedAt: connection.updatedAt,
-                // Include credentials for settings page (in production, consider auth)
                 accessToken: connection.accessToken,
                 apiKey: connection.apiKey,
                 apiSecret: connection.apiSecret,
@@ -37,10 +40,10 @@ export async function GET() {
             { status: 500 }
         )
     }
-}
+})
 
 // POST - Save new Shopify credentials
-export async function POST(req) {
+export const POST = withAuth(async (req, { user }) => {
     try {
         const data = await req.json()
         const { shopDomain, accessToken, apiKey, apiSecret } = data
@@ -58,10 +61,14 @@ export async function POST(req) {
             .replace('http://', '')
             .replace(/\/$/, '')
 
-        // Delete existing connection (we only support one connection)
-        await prisma.shopifyConnection.deleteMany({})
+        // Delete existing connection for this organization
+        await prisma.shopifyConnection.deleteMany({
+            where: {
+                organizationId: user.organizationId
+            }
+        })
 
-        // Create new connection
+        // Create new connection for this organization
         const connection = await prisma.shopifyConnection.create({
             data: {
                 shopDomain: cleanDomain,
@@ -69,6 +76,7 @@ export async function POST(req) {
                 apiKey: apiKey || null,
                 apiSecret: apiSecret || null,
                 isConnected: true,
+                organizationId: user.organizationId
             }
         })
 
@@ -87,12 +95,16 @@ export async function POST(req) {
             { status: 500 }
         )
     }
-}
+})
 
 // DELETE - Disconnect Shopify
-export async function DELETE() {
+export const DELETE = withAuth(async (request, { user }) => {
     try {
-        await prisma.shopifyConnection.deleteMany({})
+        await prisma.shopifyConnection.deleteMany({
+            where: {
+                organizationId: user.organizationId
+            }
+        })
 
         return NextResponse.json({
             success: true,
@@ -105,4 +117,4 @@ export async function DELETE() {
             { status: 500 }
         )
     }
-}
+})

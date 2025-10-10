@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-// GET /api/people - Get all people
-export async function GET(request) {
+// GET /api/people - Get all people (filtered by organization)
+export const GET = withAuth(async (request, { user }) => {
     try {
         const people = await prisma.people.findMany({
+            where: {
+                organizationId: user.organizationId
+            },
             orderBy: { createdAt: 'desc' }
         })
         return NextResponse.json(people)
@@ -12,10 +16,10 @@ export async function GET(request) {
         console.error('Error fetching people:', error)
         return NextResponse.json({ error: 'Failed to fetch people' }, { status: 500 })
     }
-}
+})
 
 // POST /api/people - Create new person
-export async function POST(request) {
+export const POST = withAuth(async (request, { user }) => {
     try {
         const data = await request.json()
 
@@ -24,9 +28,12 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
         }
 
-        // Check if email already exists
-        const existingPerson = await prisma.people.findUnique({
-            where: { email: data.email }
+        // Check if email already exists in this organization
+        const existingPerson = await prisma.people.findFirst({
+            where: {
+                email: data.email,
+                organizationId: user.organizationId
+            }
         })
 
         if (existingPerson) {
@@ -48,6 +55,7 @@ export async function POST(request) {
                 company: data.company || null,
                 address: data.address || null,
                 notes: data.notes || null,
+                organizationId: user.organizationId,
                 createdAt: new Date(),
                 updatedAt: new Date()
             }
@@ -58,4 +66,4 @@ export async function POST(request) {
         console.error('Error creating person:', error)
         return NextResponse.json({ error: 'Failed to create person' }, { status: 500 })
     }
-}
+})

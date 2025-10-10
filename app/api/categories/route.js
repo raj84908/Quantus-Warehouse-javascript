@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-// GET /api/categories - Get all categories
-export async function GET() {
+// GET /api/categories - Get all categories (filtered by organization)
+export const GET = withAuth(async (request, { user }) => {
     try {
         const categories = await prisma.category.findMany({
+            where: {
+                organizationId: user.organizationId
+            },
             include: {
                 _count: {
                     select: { products: true }
@@ -19,10 +23,10 @@ export async function GET() {
         console.error('Error fetching categories:', error)
         return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 })
     }
-}
+})
 
 // POST /api/categories - Create new category
-export async function POST(request) {
+export const POST = withAuth(async (request, { user }) => {
     try {
         const { name } = await request.json()
 
@@ -31,7 +35,10 @@ export async function POST(request) {
         }
 
         const newCategory = await prisma.category.create({
-            data: { name }
+            data: {
+                name,
+                organizationId: user.organizationId
+            }
         })
 
         return NextResponse.json(newCategory, { status: 201 })
@@ -42,4 +49,4 @@ export async function POST(request) {
         }
         return NextResponse.json({ error: 'Failed to create category' }, { status: 500 })
     }
-}
+})

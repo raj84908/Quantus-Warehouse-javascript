@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-// GET - fetch stock adjustments
-export async function GET(request) {
+// GET - fetch stock adjustments (filtered by organization)
+export const GET = withAuth(async (request, { user }) => {
     try {
         const { searchParams } = new URL(request.url)
         const limit = parseInt(searchParams.get('limit')) || 5
 
         const stockAdjustments = await prisma.stockAdjustment.findMany({
+            where: {
+                product: {
+                    organizationId: user.organizationId
+                }
+            },
             orderBy: { createdAt: 'desc' },
             take: limit,
             include: {
@@ -23,17 +29,20 @@ export async function GET(request) {
             { status: 500 }
         )
     }
-}
+})
 
 // POST - create stock adjustment
-export async function POST(request) {
+export const POST = withAuth(async (request, { user }) => {
     try {
         const data = await request.json()
         const { productId, quantity, reason, notes, adjustedBy } = data
 
-        // Get current product
-        const product = await prisma.product.findUnique({
-            where: { id: productId }
+        // Get current product (verify it belongs to this organization)
+        const product = await prisma.product.findFirst({
+            where: {
+                id: productId,
+                organizationId: user.organizationId
+            }
         })
 
         if (!product) {
@@ -77,4 +86,4 @@ export async function POST(request) {
             { status: 500 }
         )
     }
-}
+})
