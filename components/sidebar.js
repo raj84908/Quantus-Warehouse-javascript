@@ -40,7 +40,7 @@ const navigation = [
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
   const pathname = usePathname()
-  const { data: session, status } = useSession()
+  const { data: session, status } = useSession({ required: false })
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: '/auth/signin' })
