@@ -7,6 +7,64 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ========================================
+// MULTI-TENANT MODELS
+// ========================================
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+
+  // Subscription
+  plan            String   @default("FREE") // FREE, STARTER, PRO, ENTERPRISE
+  isActive        Boolean  @default(true)
+
+  // Branding
+  logo            String?
+  primaryColor    String   @default("#8B5A3C")
+
+  // Relationships
+  users           AuthUser[]
+  products        Product[]
+  orders          Order[]
+  categories      Category[]
+  shopifyConnections ShopifyConnection[]
+  people          People[]
+  reports         Report[]
+  invoiceSettings InvoiceSettings?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([slug])
+}
+
+model AuthUser {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  password        String   // Hashed with bcrypt
+  name            String
+  avatar          String?
+
+  // Organization
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Role
+  role            String   @default("OWNER") // OWNER, ADMIN, MEMBER
+
+  // Security
+  emailVerified   Boolean  @default(false)
+  lastLoginAt     DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([email])
+}
+
 model StockAdjustment {
   id            Int      @id @default(autoincrement())
   productId     Int?
@@ -22,7 +80,12 @@ model StockAdjustment {
 
 model Product {
   id               Int               @id @default(autoincrement())
-  sku              String            @unique
+
+  // Multi-tenancy
+  organizationId   String
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  sku              String
   name             String
   categoryId       Int
   stock            Int
@@ -32,18 +95,29 @@ model Product {
   status           Status            @default(IN_STOCK)
   lastUpdated      DateTime          @updatedAt
   image            String?
-  shopifyProductId String?           @unique // Shopify product ID
-  shopifyVariantId String?           @unique // Shopify variant ID
-  shopifyImageUrl  String?                   // Shopify CDN image URL
+  shopifyProductId String?           // Shopify product ID
+  shopifyVariantId String?           // Shopify variant ID
+  shopifyImageUrl  String?           // Shopify CDN image URL
   syncedFromShopify Boolean          @default(false) // Flag for Shopify products
   orderItems       OrderItem[]
   category         Category          @relation(fields: [categoryId], references: [id])
   stockAdjustments StockAdjustment[]
+
+  @@unique([sku, organizationId])
+  @@unique([shopifyProductId, organizationId])
+  @@unique([shopifyVariantId, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, categoryId])
 }
 
 model Order {
   id             Int         @id @default(autoincrement())
-  orderId        String      @unique
+
+  // Multi-tenancy
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  orderId        String
   customer       String
   email          String
   phone          String?
@@ -58,6 +132,10 @@ model Order {
   updatedAt      DateTime    @updatedAt
   items          OrderItem[]
   partialPayments PartialPayment[]
+
+  @@unique([orderId, organizationId])
+  @@index([organizationId])
+  @@index([organizationId, status])
 }
 
 model OrderItem {
@@ -79,15 +157,28 @@ model User {
 }
 
 model Category {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
+  id             Int       @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name      String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   products  Product[]
+
+  @@unique([name, organizationId])
+  @@index([organizationId])
 }
 
 model Report {
   id          Int      @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   name        String
   description String?
   category    String
@@ -97,6 +188,8 @@ model Report {
   timeRange   String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model Profile {
@@ -133,8 +226,13 @@ model PartialPayment {
 
 model People {
   id          Int       @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   name        String
-  email       String    @unique
+  email       String
   phone       String?
   department  String?
   position    String?
@@ -147,10 +245,18 @@ model People {
   notes       String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@unique([email, organizationId])
+  @@index([organizationId])
 }
 
 model InvoiceSettings {
   id              Int      @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId  String   @unique
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   companyName     String   @default("Your Company")
   companyEmail    String?
   companyPhone    String?
@@ -163,13 +269,19 @@ model InvoiceSettings {
   paymentMethods  String?  @default("Bank Transfer: [Account Details]\nPayPal: payment@company.com\nCheck: Make payable to Company Name") // Payment methods text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
+
   @@map("invoice_settings")
+  @@index([organizationId])
 }
 
 
 model ShopifyConnection {
   id           Int       @id @default(autoincrement())
+
+  // Multi-tenancy (one per organization)
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   shopDomain   String    // e.g., your-store.myshopify.com
   apiKey       String?
   apiSecret    String?
@@ -178,6 +290,8 @@ model ShopifyConnection {
   lastSyncAt   DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([organizationId])
 }
 
 enum Status {
