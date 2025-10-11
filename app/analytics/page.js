@@ -9,8 +9,6 @@ import {
   RotateCcw,
   Users,
   BarChart3,
-  Package,
-  Truck,
   AlertTriangle,
   TrendingUp,
   Activity,
@@ -18,14 +16,11 @@ import {
   Minimize2,
 } from "lucide-react"
 import {
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   Area,
   AreaChart,
 } from "recharts"
@@ -34,8 +29,6 @@ import { useState, useEffect } from "react"
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("30")
   const [analytics, setAnalytics] = useState(null)
-  const [topProducts, setTopProducts] = useState([])
-  const [performanceMetrics, setPerformanceMetrics] = useState([])
   const [insights, setInsights] = useState([])
   const [salesTrend, setSalesTrend] = useState([])
   const [loading, setLoading] = useState(true)
@@ -47,25 +40,19 @@ export default function AnalyticsPage() {
   const fetchAnalyticsData = async () => {
     setLoading(true)
     try {
-      const [analyticsRes, topProductsRes, performanceRes, insightsRes, salesTrendRes] = await Promise.all([
+      const [analyticsRes, insightsRes, salesTrendRes] = await Promise.all([
         fetch(`/api/analytics?timeRange=${timeRange}`),
-        fetch(`/api/analytics/top-products?timeRange=${timeRange}`),
-        fetch(`/api/analytics/performance?timeRange=${timeRange}`),
         fetch(`/api/analytics/insights`),
         fetch(`/api/analytics/sales-trend?timeRange=${timeRange}`),
       ])
 
-      const [analyticsData, topProductsData, performanceData, insightsData, salesTrendData] = await Promise.all([
+      const [analyticsData, insightsData, salesTrendData] = await Promise.all([
         analyticsRes.json(),
-        topProductsRes.json(),
-        performanceRes.json(),
         insightsRes.json(),
         salesTrendRes.json(),
       ])
 
       setAnalytics(analyticsData)
-      setTopProducts(Array.isArray(topProductsData) ? topProductsData : [])
-      setPerformanceMetrics(Array.isArray(performanceData) ? performanceData : [])
       setInsights(Array.isArray(insightsData) ? insightsData : [])
       setSalesTrend(Array.isArray(salesTrendData) ? salesTrendData : [])
     } catch (error) {
@@ -196,21 +183,21 @@ export default function AnalyticsPage() {
             </Select>
           </div>
 
-          {/* Overview cards - NO percentages */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Analytics Overview</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Overview cards - cleaner design */}
+          <div className="mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {stats.map((stat, index) => {
                 const Icon = stat.icon
                 return (
-                    <Card key={index} className="dark:bg-gray-800 dark:border-gray-700">
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.title}</CardTitle>
-                        <Icon className="h-4 w-4 text-blue-600" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">&nbsp;</p>
+                    <Card key={index} className="border-0 shadow-sm dark:bg-gray-800/50">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                            <Icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                        </div>
+                        <div className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-1">{stat.value}</div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{stat.title}</p>
                       </CardContent>
                     </Card>
                 )
@@ -218,29 +205,29 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Sales Trend Chart and only three summary metrics */}
-          <div className={`mb-8 ${isChartExpanded ? "fixed inset-4 z-50 bg-white dark:bg-gray-900 rounded-lg shadow-2xl" : ""}`}>
-            <Card className="dark:bg-gray-800 dark:border-gray-700">
-              <CardHeader className="flex flex-row items-center justify-between">
+          {/* Sales Trend Chart with cleaner styling */}
+          <div className={`mb-6 ${isChartExpanded ? "fixed inset-4 z-50 bg-white dark:bg-gray-900 rounded-lg shadow-2xl" : ""}`}>
+            <Card className="border-0 shadow-sm dark:bg-gray-800/50">
+              <CardHeader className="flex flex-row items-center justify-between pb-4">
                 <div>
-                  <CardTitle className="text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                  <CardTitle className="text-gray-900 dark:text-gray-100 flex items-center gap-2 text-lg">
                     <BarChart3 className="h-5 w-5 text-blue-600" />
                     Sales Trend
                   </CardTitle>
-                  <CardDescription className="text-gray-600 dark:text-gray-400">
-                    Revenue performance over time with detailed insights
+                  <CardDescription className="text-gray-600 dark:text-gray-400 text-sm">
+                    Revenue performance over time
                   </CardDescription>
                 </div>
                 <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setIsChartExpanded(!isChartExpanded)}
-                    className="ml-auto"
+                    className="ml-auto hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   {isChartExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                 </Button>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 <div className={`${isChartExpanded ? "h-96" : "h-80"} w-full`}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={salesTrend} margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
@@ -250,7 +237,7 @@ export default function AnalyticsPage() {
                           <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.5} className="dark:stroke-gray-600" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.3} className="dark:stroke-gray-600" />
                       <XAxis
                           dataKey="date"
                           tick={{ fontSize: 12, fill: "#6b7280" }}
@@ -275,231 +262,73 @@ export default function AnalyticsPage() {
                           type="monotone"
                           dataKey="revenue"
                           stroke="#3b82f6"
-                          strokeWidth={3}
+                          strokeWidth={2}
                           fill="url(#salesGradient)"
                           fillOpacity={1}
-                      />
-                      <Line
-                          type="monotone"
-                          dataKey="revenue"
-                          stroke="#1d4ed8"
-                          strokeWidth={2}
-                          dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
-                          activeDot={{ r: 6, fill: "#1d4ed8", strokeWidth: 2 }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
 
-                {/* Only three summary metrics below chart */}
-                <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {/* Cleaner summary metrics below chart */}
+                <div className="grid grid-cols-3 gap-6 mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Peak Revenue</div>
+                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                       {salesTrend.length > 0 ? formatCurrency(Math.max(...salesTrend.map((d) => d.revenue))) : "$0"}
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Peak Revenue</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Average Daily</div>
+                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                       {salesTrend.length > 0
                           ? formatCurrency(salesTrend.reduce((sum, d) => sum + d.revenue, 0) / salesTrend.length)
                           : "$0"}
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Average Daily</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Revenue</div>
+                    <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                       {salesTrend.length > 0 ? formatCurrency(salesTrend.reduce((sum, d) => sum + d.revenue, 0)) : "$0"}
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Revenue</div>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Top Products Performance, with "Estimated Revenue" and "Avg. Growth" REMOVED */}
-          <div className="mb-8">
-            <Card className="dark:bg-gray-800 dark:border-gray-700">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                    <Package className="h-5 w-5 text-blue-600" />
-                    Top Products Performance
-                  </CardTitle>
-                  <CardDescription className="text-gray-600 dark:text-gray-400">
-                    Comprehensive analysis of best-selling products with revenue and trend insights
-                  </CardDescription>
-                </div>
-                <Select defaultValue="units">
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="units">By Units</SelectItem>
-                    <SelectItem value="revenue">By Revenue</SelectItem>
-                  </SelectContent>
-                </Select>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80 mb-6">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                        data={topProducts.slice(0, 6).map((product) => ({
-                          name: product.name.length > 12 ? product.name.substring(0, 12) + "..." : product.name,
-                          fullName: product.name,
-                          units: Number.parseInt(product.units.split(" ")[0]),
-                          revenue: product.revenue,
-                        }))}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                      <XAxis
-                          dataKey="name"
-                          tick={{ fontSize: 11, fill: "#6b7280" }}
-                          angle={-45}
-                          textAnchor="end"
-                          height={80}
-                          interval={0}
-                      />
-                      <YAxis
-                          yAxisId="units"
-                          orientation="left"
-                          tick={{ fontSize: 11, fill: "#6b7280" }}
-                          label={{ value: "Units Sold", angle: -90, position: "insideLeft" }}
-                      />
-                      <YAxis
-                          yAxisId="revenue"
-                          orientation="right"
-                          tick={{ fontSize: 11, fill: "#6b7280" }}
-                          tickFormatter={formatCompactCurrency}
-                          label={{ value: "Revenue", angle: 90, position: "insideRight" }}
-                      />
-                      <Tooltip
-                          content={({ active, payload, label }) => {
-                            if (active && payload && payload.length) {
-                              const data = payload[0].payload
-                              return (
-                                  <div className="bg-white dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-                                    <p className="font-semibold text-gray-900 dark:text-gray-100 mb-2">{data.fullName}</p>
-                                    <p className="text-sm text-blue-600 dark:text-blue-400">
-                                      Units: <span className="font-semibold">{data.units.toLocaleString()}</span>
-                                    </p>
-                                    <p className="text-sm text-green-600 dark:text-green-400">
-                                      Revenue: <span className="font-semibold">{formatCurrency(data.revenue)}</span>
-                                    </p>
-                                  </div>
-                              )
-                            }
-                            return null
-                          }}
-                      />
-                      <Bar yAxisId="units" dataKey="units" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Units Sold" />
-                      <Bar
-                          yAxisId="revenue"
-                          dataKey="revenue"
-                          fill="#10b981"
-                          radius={[4, 4, 0, 0]}
-                          name="Revenue"
-                          opacity={0.7}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                {/* Keep only "Total Units" card */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Package className="h-4 w-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-900 dark:text-blue-100">Total Units</span>
-                    </div>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                      {topProducts
-                          .reduce((sum, product) => sum + Number.parseInt(product.units.split(" ")[0]), 0)
-                          .toLocaleString()}
-                    </p>
-                    <p className="text-xs text-blue-700 dark:text-blue-300">Top 8 products combined</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Product/Performance/Insights panels unchanged */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="dark:bg-gray-800 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-gray-900 dark:text-gray-100">Top Products</CardTitle>
-                <CardDescription className="text-gray-600 dark:text-gray-400">
-                  Best performing items this period
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {topProducts.slice(0, 5).map((product, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-gray-100">{product.name}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{product.units}</p>
-                        </div>
-                      </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="dark:bg-gray-800 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-gray-900 dark:text-gray-100">Performance Metrics</CardTitle>
-                <CardDescription className="text-gray-600 dark:text-gray-400">Key operational indicators</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {performanceMetrics.map((metric, index) => (
-                      <div key={index}>
-                        <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center">
-                        <Truck className="h-4 w-4 mr-1" />
-                        {metric.metric}
-                      </span>
-                          <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{metric.value}</span>
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Target: {metric.target}</p>
-                      </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="dark:bg-gray-800 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-gray-900 dark:text-gray-100">Insights & Alerts</CardTitle>
-                <CardDescription className="text-gray-600 dark:text-gray-400">
-                  Important notifications and trends
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {insights.length > 0 ? (
-                      insights.map((insight, index) => (
-                          <div key={index} className="flex items-start space-x-3">
-                            <div className="mt-1">{getSeverityIcon(insight.severity)}</div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{insight.type}</p>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">{insight.message}</p>
-                            </div>
+          {/* Insights & Alerts - cleaner single column layout */}
+          <Card className="border-0 shadow-sm dark:bg-gray-800/50">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-gray-900 dark:text-gray-100 flex items-center gap-2 text-lg">
+                <Activity className="h-5 w-5 text-blue-600" />
+                Insights & Alerts
+              </CardTitle>
+              <CardDescription className="text-gray-600 dark:text-gray-400 text-sm">
+                Important notifications and trends
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                {insights.length > 0 ? (
+                    insights.map((insight, index) => (
+                        <div key={index} className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                          <div className="mt-0.5">{getSeverityIcon(insight.severity)}</div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{insight.type}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{insight.message}</p>
                           </div>
-                      ))
-                  ) : (
-                      <div className="text-center py-4">
-                        <Activity className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">No insights available</p>
-                      </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-center py-8">
+                      <Activity className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No insights available</p>
+                    </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
   )

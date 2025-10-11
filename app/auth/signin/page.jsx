@@ -33,11 +33,19 @@ function SignInForm() {
       if (result?.error) {
         setError(result.error)
         setLoading(false)
-      } else {
+      } else if (result?.ok) {
+        // Successfully signed in
         router.push(callbackUrl)
         router.refresh()
+        // Reset loading after a short delay as fallback
+        setTimeout(() => setLoading(false), 3000)
+      } else {
+        // Unexpected result
+        setError('Sign in failed. Please try again.')
+        setLoading(false)
       }
     } catch (err) {
+      console.error('Sign in error:', err)
       setError('An error occurred. Please try again.')
       setLoading(false)
     }

@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { Sun, Moon, Monitor, SettingsIcon, Palette, FileText, Upload, Image, ShoppingBag, CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { Sun, Moon, Monitor, SettingsIcon, Palette, FileText, Upload, Image, ShoppingBag, CheckCircle, XCircle, Loader2, Truck, Eye, EyeOff } from "lucide-react"
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
@@ -66,10 +66,27 @@ export default function SettingsPage() {
   const [isSavingShopify, setIsSavingShopify] = useState(false)
   const [connectionTestResult, setConnectionTestResult] = useState(null)
 
-  // Load invoice settings and Shopify connection on component mount
+  // Shipping API credentials state
+  const [shippingCredentials, setShippingCredentials] = useState({
+    upsClientId: "",
+    upsClientSecret: "",
+    fedexClientId: "",
+    fedexClientSecret: ""
+  })
+  const [showSecrets, setShowSecrets] = useState({
+    upsSecret: false,
+    fedexSecret: false
+  })
+  const [isLoadingShipping, setIsLoadingShipping] = useState(false)
+  const [isSavingShipping, setIsSavingShipping] = useState(false)
+  const [isTestingShipping, setIsTestingShipping] = useState({ ups: false, fedex: false })
+  const [shippingTestResults, setShippingTestResults] = useState({ ups: null, fedex: null })
+
+  // Load invoice settings, Shopify connection, and shipping credentials on component mount
   useEffect(() => {
     loadInvoiceSettings()
     loadShopifyConnection()
+    loadShippingCredentials()
   }, [])
 
   const loadInvoiceSettings = async () => {
@@ -242,6 +259,97 @@ export default function SettingsPage() {
     } catch (error) {
       console.error('Error disconnecting Shopify:', error)
       alert('Failed to disconnect Shopify')
+    }
+  }
+
+  // Load shipping credentials
+  const loadShippingCredentials = async () => {
+    try {
+      setIsLoadingShipping(true)
+      const response = await fetch('/api/shipping-credentials')
+      if (response.ok) {
+        const data = await response.json()
+        setShippingCredentials({
+          upsClientId: data.upsClientId || "",
+          upsClientSecret: data.upsClientSecret || "",
+          fedexClientId: data.fedexClientId || "",
+          fedexClientSecret: data.fedexClientSecret || ""
+        })
+      }
+    } catch (error) {
+      console.error('Error loading shipping credentials:', error)
+    } finally {
+      setIsLoadingShipping(false)
+    }
+  }
+
+  // Save shipping credentials
+  const handleSaveShippingCredentials = async () => {
+    setIsSavingShipping(true)
+
+    try {
+      const response = await fetch('/api/shipping-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shippingCredentials)
+      })
+
+      if (response.ok) {
+        alert('Shipping credentials saved successfully! ✅')
+        await loadShippingCredentials()
+      } else {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to save credentials')
+      }
+    } catch (error) {
+      console.error('Error saving shipping credentials:', error)
+      alert(`Failed to save credentials: ${error.message}`)
+    } finally {
+      setIsSavingShipping(false)
+    }
+  }
+
+  // Test shipping API connection
+  const testShippingConnection = async (carrier) => {
+    setIsTestingShipping(prev => ({ ...prev, [carrier.toLowerCase()]: true }))
+    setShippingTestResults(prev => ({ ...prev, [carrier.toLowerCase()]: null }))
+
+    try {
+      // Use a test tracking number for the carrier
+      const testTrackingNumbers = {
+        ups: '1Z999AA10123456784',
+        fedex: '123456789012'
+      }
+
+      const response = await fetch(`/api/tracking/${carrier.toLowerCase()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trackingNumber: testTrackingNumbers[carrier.toLowerCase()],
+          test: true
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setShippingTestResults(prev => ({
+          ...prev,
+          [carrier.toLowerCase()]: { success: true, message: 'API connection successful!' }
+        }))
+      } else {
+        setShippingTestResults(prev => ({
+          ...prev,
+          [carrier.toLowerCase()]: { success: false, message: data.error || 'Connection failed' }
+        }))
+      }
+    } catch (error) {
+      setShippingTestResults(prev => ({
+        ...prev,
+        [carrier.toLowerCase()]: { success: false, message: error.message }
+      }))
+    } finally {
+      setIsTestingShipping(prev => ({ ...prev, [carrier.toLowerCase()]: false }))
     }
   }
 
@@ -842,6 +950,307 @@ export default function SettingsPage() {
                     <li>Install the app and copy the Admin API access token</li>
                     <li>Paste your credentials above and click "Test Connection"</li>
                   </ol>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Shipping API Integration Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <Truck className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      Shipping API Integration
+                      {(shippingCredentials.upsClientId || shippingCredentials.fedexClientId) && (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      Connect UPS and FedEx APIs for real-time shipment tracking
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-8">
+                {/* UPS API Credentials */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <h3 className="font-semibold text-lg">UPS Tracking API</h3>
+                    {shippingCredentials.upsClientId && shippingCredentials.upsClientSecret && (
+                      <Badge variant="outline" className="text-green-600 border-green-600">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Configured
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="upsClientId">UPS Client ID</Label>
+                    <Input
+                      id="upsClientId"
+                      placeholder="Enter your UPS Client ID"
+                      value={shippingCredentials.upsClientId}
+                      onChange={(e) => setShippingCredentials(prev => ({
+                        ...prev,
+                        upsClientId: e.target.value
+                      }))}
+                      disabled={isLoadingShipping}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Get this from{" "}
+                      <a
+                        href="https://developer.ups.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        UPS Developer Portal
+                      </a>
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="upsClientSecret">UPS Client Secret</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="upsClientSecret"
+                        type={showSecrets.upsSecret ? "text" : "password"}
+                        placeholder="Enter your UPS Client Secret"
+                        value={shippingCredentials.upsClientSecret}
+                        onChange={(e) => setShippingCredentials(prev => ({
+                          ...prev,
+                          upsClientSecret: e.target.value
+                        }))}
+                        disabled={isLoadingShipping}
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowSecrets(prev => ({ ...prev, upsSecret: !prev.upsSecret }))}
+                        type="button"
+                      >
+                        {showSecrets.upsSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* UPS Test Result */}
+                  {shippingTestResults.ups && (
+                    <div className={`rounded-lg p-4 ${
+                      shippingTestResults.ups.success
+                        ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                        : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                    }`}>
+                      <div className="flex items-start gap-2">
+                        {shippingTestResults.ups.success ? (
+                          <>
+                            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="font-medium text-green-800 dark:text-green-200">
+                                UPS Connection Successful!
+                              </p>
+                              <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                                {shippingTestResults.ups.message}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="font-medium text-red-800 dark:text-red-200">
+                                Connection Failed
+                              </p>
+                              <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                                {shippingTestResults.ups.message}
+                              </p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    onClick={() => testShippingConnection('ups')}
+                    disabled={!shippingCredentials.upsClientId || !shippingCredentials.upsClientSecret || isTestingShipping.ups}
+                  >
+                    {isTestingShipping.ups ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Testing UPS...
+                      </>
+                    ) : (
+                      'Test UPS Connection'
+                    )}
+                  </Button>
+                </div>
+
+                {/* FedEx API Credentials */}
+                <div className="space-y-4 pt-6 border-t">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <h3 className="font-semibold text-lg">FedEx Tracking API</h3>
+                    {shippingCredentials.fedexClientId && shippingCredentials.fedexClientSecret && (
+                      <Badge variant="outline" className="text-green-600 border-green-600">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Configured
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fedexClientId">FedEx Client ID (API Key)</Label>
+                    <Input
+                      id="fedexClientId"
+                      placeholder="Enter your FedEx Client ID"
+                      value={shippingCredentials.fedexClientId}
+                      onChange={(e) => setShippingCredentials(prev => ({
+                        ...prev,
+                        fedexClientId: e.target.value
+                      }))}
+                      disabled={isLoadingShipping}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Get this from{" "}
+                      <a
+                        href="https://developer.fedex.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        FedEx Developer Portal
+                      </a>
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fedexClientSecret">FedEx Client Secret (Secret Key)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="fedexClientSecret"
+                        type={showSecrets.fedexSecret ? "text" : "password"}
+                        placeholder="Enter your FedEx Client Secret"
+                        value={shippingCredentials.fedexClientSecret}
+                        onChange={(e) => setShippingCredentials(prev => ({
+                          ...prev,
+                          fedexClientSecret: e.target.value
+                        }))}
+                        disabled={isLoadingShipping}
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowSecrets(prev => ({ ...prev, fedexSecret: !prev.fedexSecret }))}
+                        type="button"
+                      >
+                        {showSecrets.fedexSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* FedEx Test Result */}
+                  {shippingTestResults.fedex && (
+                    <div className={`rounded-lg p-4 ${
+                      shippingTestResults.fedex.success
+                        ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                        : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                    }`}>
+                      <div className="flex items-start gap-2">
+                        {shippingTestResults.fedex.success ? (
+                          <>
+                            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="font-medium text-green-800 dark:text-green-200">
+                                FedEx Connection Successful!
+                              </p>
+                              <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                                {shippingTestResults.fedex.message}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="font-medium text-red-800 dark:text-red-200">
+                                Connection Failed
+                              </p>
+                              <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                                {shippingTestResults.fedex.message}
+                              </p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    onClick={() => testShippingConnection('fedex')}
+                    disabled={!shippingCredentials.fedexClientId || !shippingCredentials.fedexClientSecret || isTestingShipping.fedex}
+                  >
+                    {isTestingShipping.fedex ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Testing FedEx...
+                      </>
+                    ) : (
+                      'Test FedEx Connection'
+                    )}
+                  </Button>
+                </div>
+
+                {/* Save Button */}
+                <div className="pt-6 border-t">
+                  <Button
+                    onClick={handleSaveShippingCredentials}
+                    disabled={isSavingShipping || isLoadingShipping}
+                    className="w-full"
+                  >
+                    {isSavingShipping ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Shipping Credentials'
+                    )}
+                  </Button>
+                </div>
+
+                {/* Setup Instructions */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-3">Quick Setup Guide</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-1">UPS:</p>
+                      <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside ml-2">
+                        <li>Register at developer.ups.com</li>
+                        <li>Create a new app</li>
+                        <li>Get Client ID and Client Secret</li>
+                        <li>Enable "Tracking API"</li>
+                      </ol>
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-1">FedEx:</p>
+                      <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside ml-2">
+                        <li>Register at developer.fedex.com</li>
+                        <li>Create a new project</li>
+                        <li>Get API Key (Client ID) and Secret Key</li>
+                        <li>Enable "Track API"</li>
+                      </ol>
+                    </div>
+                  </div>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-3">
+                    💡 Both APIs are 100% FREE with no credit card required!
+                  </p>
                 </div>
               </CardContent>
             </Card>

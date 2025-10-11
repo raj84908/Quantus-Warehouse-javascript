@@ -1717,14 +1717,20 @@ export default function OrdersPage() {
             {stats.map((stat, index) => {
               const Icon = stat.icon
               return (
-                  <Card key={index}>
+                  <Card key={index} className="border-0 shadow-sm dark:bg-gray-800/50">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium text-gray-600">{stat.title}</CardTitle>
-                      <Icon className={`h-4 w-4 ${stat.color || "text-blue-600"}`} />
+                      <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
+                      <div className={`p-2 rounded-lg ${
+                        stat.color?.includes('orange') ? 'bg-orange-50 dark:bg-orange-900/20' :
+                        stat.color?.includes('green') ? 'bg-green-50 dark:bg-green-900/20' :
+                        'bg-blue-50 dark:bg-blue-900/20'
+                      }`}>
+                        <Icon className={`h-5 w-5 ${stat.color || "text-blue-600 dark:text-blue-400"}`} />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className={`text-2xl font-bold ${stat.color || ""}`}>{stat.value}</div>
-                      <p className="text-xs text-gray-600">{stat.description}</p>
+                      <p className="text-xs text-muted-foreground">{stat.description}</p>
                     </CardContent>
                   </Card>
               )
@@ -1759,25 +1765,21 @@ export default function OrdersPage() {
           </div>
 
           {/* Orders Table */}
-          <Card>
+          <Card className="border-0 shadow-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>
-                    {activeTab === "all" && "All Orders"}
-                    {activeTab === "processing" && "Processing Orders"}
-                    {activeTab === "completed" && "Completed Orders"}
+                    {activeTab === "all" && `All Orders (${filteredOrders.length})`}
+                    {activeTab === "processing" && `Processing Orders (${filteredOrders.length})`}
+                    {activeTab === "completed" && `Completed Orders (${filteredOrders.length})`}
                   </CardTitle>
                   <CardDescription>
-                    {activeTab === "all" && `Complete list of warehouse orders (${filteredOrders.length} orders)`}
-                    {activeTab === "processing" && `Orders currently being processed (${filteredOrders.length} orders)`}
-                    {activeTab === "completed" && `Successfully completed orders (${filteredOrders.length} orders)`}
+                    {activeTab === "all" && "Complete list of warehouse orders"}
+                    {activeTab === "processing" && "Orders currently being processed"}
+                    {activeTab === "completed" && "Successfully completed orders"}
                   </CardDescription>
                 </div>
-                <Button variant="outline" size="sm">
-                  <Filter className="mr-2 h-4 w-4" />
-                  More Filters
-                </Button>
               </div>
               <div className="flex items-center space-x-4 mt-4">
                 <div className="relative flex-1">

@@ -127,25 +127,19 @@ function ReportsPage() {
     {
       title: "Total Reports",
       value: reportsData.totalReports?.toString() || "0",
-      description: "Generated this month",
+      description: "All generated reports",
       icon: FileText,
     },
     {
-      title: "Automated Reports",
+      title: "Recent Activity",
       value: reportsData.automatedReports?.toString() || "0",
-      description: "Scheduled reports",
+      description: "Reports this week",
       icon: Clock,
-    },
-    {
-      title: "Data Accuracy",
-      value: `${reportsData.dataAccuracy?.toFixed(1) || 0}%`,
-      description: "Report accuracy rate",
-      icon: BarChart3,
     },
     {
       title: "Storage Used",
       value: formatFileSize(reportsData.storageUsed || 0),
-      description: "Report storage",
+      description: "Total report storage",
       icon: Database,
     },
   ] : []
@@ -203,20 +197,20 @@ function ReportsPage() {
             </div>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Reports & Analytics</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {stats.map((stat, index) => {
                 const Icon = stat.icon
                 return (
-                    <Card key={index} className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.title}</CardTitle>
-                        <Icon className="h-4 w-4 text-blue-500" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">{stat.description}</p>
+                    <Card key={index} className="border-0 shadow-sm dark:bg-gray-800/50">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                            <Icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                        </div>
+                        <div className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">{stat.value}</div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{stat.description}</p>
                       </CardContent>
                     </Card>
                 )
@@ -225,22 +219,22 @@ function ReportsPage() {
           </div>
 
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Generate New Report</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Generate New Report</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {reportTypes.map((report, index) => (
-                  <Card key={index} className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <CardTitle className="text-lg text-gray-900 dark:text-white">{report.name}</CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-400">{report.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                  <Card key={index} className="border-0 shadow-sm dark:bg-gray-800/50 hover:shadow-md transition-shadow">
+                    <CardContent className="p-5">
+                      <div className="mb-3">
+                        <h3 className="font-medium text-gray-900 dark:text-white mb-1">{report.name}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{report.description}</p>
+                      </div>
                       <Button
                           onClick={() => generateReport(report.name)}
                           disabled={generating}
-                          className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm"
                       >
                         <Plus className="h-4 w-4 mr-2" />
-                        {generating ? 'Generating...' : 'Generate Report'}
+                        {generating ? 'Generating...' : 'Generate'}
                       </Button>
                     </CardContent>
                   </Card>
@@ -248,14 +242,14 @@ function ReportsPage() {
             </div>
           </div>
 
-          <div className="mb-6">
-            <div className="flex space-x-1 border-b border-gray-200 dark:border-gray-700">
+          <div className="mb-4">
+            <div className="flex space-x-1 border-b border-gray-100 dark:border-gray-700">
               {reportCategories.map((category, index) => (
                   <Button
                       key={index}
                       variant="ghost"
                       onClick={() => setActiveCategory(category.name)}
-                      className={category.active ? "border-b-2 border-blue-500 text-blue-500" : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"}
+                      className={`rounded-none pb-3 ${category.active ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400" : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"}`}
                   >
                     {category.name}
                   </Button>
@@ -263,50 +257,49 @@ function ReportsPage() {
             </div>
           </div>
 
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">
+          <Card className="border-0 shadow-sm dark:bg-gray-800/50">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg text-gray-900 dark:text-white">
                 {activeCategory === 'Overview' ? 'Recent Reports' : `${activeCategory} Reports`}
               </CardTitle>
-              <CardDescription className="text-gray-600 dark:text-gray-400">
+              <CardDescription className="text-sm text-gray-500 dark:text-gray-400">
                 {activeCategory === 'Overview' ? 'Recently generated warehouse reports' : `${activeCategory} reports from your warehouse`}
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="pt-0">
+              <div className="space-y-3">
                 {filteredReports.length > 0 ? filteredReports.map((report, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-blue-500" />
+                    <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg hover:shadow-sm transition-shadow">
+                      <div className="flex items-center space-x-4 flex-1">
+                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                         </div>
-                        <div>
-                          <h3 className="font-medium text-gray-900 dark:text-white">{report.name}</h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{report.description}</p>
-                          <div className="flex items-center space-x-4 mt-1">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300">
-                          {report.category}
-                        </span>
-                            <span className="text-xs text-gray-600 dark:text-gray-400">
-                          {report.format} • {formatFileSize(report.size)} • {formatDate(report.createdAt)}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 dark:text-white text-sm">{report.name}</h3>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+                              {report.category}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatFileSize(report.size)} • {formatDate(report.createdAt)}
+                            </span>
                           </div>
                         </div>
                       </div>
                       <Button
                           size="sm"
-                          variant="outline"
+                          variant="ghost"
                           onClick={() => downloadReport(report.id)}
-                          className="bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+                          className="ml-4 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                       >
                         <Download className="h-4 w-4 mr-2" />
                         Download
                       </Button>
                     </div>
                 )) : (
-                    <div className="text-center py-8">
-                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500 dark:text-gray-400">No reports found for this category</p>
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-500 dark:text-gray-400 font-medium">No reports found</p>
                       <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Generate your first report to get started</p>
                     </div>
                 )}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import dynamic from "next/dynamic"
-import { Search, Filter, Download, Plus } from "lucide-react"
+import { Search, Filter, Download, Plus, RefreshCw, ExternalLink, MapPin, Clock } from "lucide-react"
 
 // Leaflet imports
 import "leaflet/dist/leaflet.css"
@@ -69,6 +69,10 @@ export default function ShipmentsPage() {
   const [trackingNumberInput, setTrackingNumberInput] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
+  const [trackingData, setTrackingData] = useState({})
+  const [loadingTracking, setLoadingTracking] = useState({})
+  const [showTrackingModal, setShowTrackingModal] = useState(false)
+  const [modalTrackingData, setModalTrackingData] = useState(null)
 
   // Leaflet z-index fix for dialogs
   useEffect(() => {
@@ -109,6 +113,67 @@ export default function ShipmentsPage() {
     return matchesSearch && matchesStatus
   })
 
+  // Track shipment using carrier API
+  const trackShipment = async (shipment) => {
+    const { trackingNumber, carrier } = shipment;
+
+    // Check if carrier is supported
+    if (!['UPS', 'FedEx'].includes(carrier)) {
+      alert(`Tracking for ${carrier} is not yet integrated. Opening carrier website...`);
+      window.open(getCarrierTrackingUrl(carrier, trackingNumber), '_blank');
+      return;
+    }
+
+    setLoadingTracking(prev => ({ ...prev, [shipment.id]: true }));
+
+    try {
+      const apiEndpoint = carrier === 'UPS'
+        ? '/api/tracking/ups'
+        : '/api/tracking/fedex';
+
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackingNumber })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // API not configured, open fallback URL
+        if (data.fallbackUrl) {
+          console.warn(data.message);
+          window.open(data.fallbackUrl, '_blank');
+          alert(`${carrier} API not configured. Opening carrier website instead.\n\n${data.message}`);
+        } else {
+          throw new Error(data.error || 'Failed to track shipment');
+        }
+      } else {
+        // Success - show tracking details
+        setTrackingData(prev => ({ ...prev, [shipment.id]: data }));
+        setModalTrackingData(data);
+        setShowTrackingModal(true);
+      }
+    } catch (error) {
+      console.error('Tracking error:', error);
+      alert(`Error tracking shipment: ${error.message}`);
+    } finally {
+      setLoadingTracking(prev => ({ ...prev, [shipment.id]: false }));
+    }
+  };
+
+  // Get carrier tracking URL as fallback
+  const getCarrierTrackingUrl = (carrier, trackingNumber) => {
+    const urls = {
+      'UPS': `https://www.ups.com/track?tracknum=${trackingNumber}`,
+      'FedEx': `https://www.fedex.com/fedextrack/?tracknumbers=${trackingNumber}`,
+      'USPS': `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`,
+      'DHL': `https://www.dhl.com/en/express/tracking.html?AWB=${trackingNumber}`,
+      'Canada Post': `https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=${trackingNumber}`
+    };
+    return urls[carrier] || `https://www.google.com/search?q=track+${trackingNumber}`;
+  };
+
   // Handle tracking number search and select shipment
   const handleTrackPackage = () => {
     const shipment = shipments.find(
@@ -118,6 +183,7 @@ export default function ShipmentsPage() {
     )
     if (shipment) {
       setSelectedShipment(shipment)
+      trackShipment(shipment)
       setSearchTerm("") // Reset other searches
       setStatusFilter("all")
     } else {
@@ -129,6 +195,102 @@ export default function ShipmentsPage() {
   return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 relative">
         <div className="container mx-auto px-6 py-8">
+
+          {/* Tracking Details Modal */}
+          {showTrackingModal && modalTrackingData && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-2xl">Tracking Details</CardTitle>
+                      <CardDescription className="mt-1">
+                        {modalTrackingData.carrier} - {modalTrackingData.trackingNumber}
+                      </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setShowTrackingModal(false)}>
+                      ✕
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Status Overview */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Current Status</p>
+                        <Badge className="bg-blue-600 text-white text-base px-3 py-1">
+                          {modalTrackingData.status}
+                        </Badge>
+                      </div>
+                      {modalTrackingData.location && (
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1 flex items-center">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            Current Location
+                          </p>
+                          <p className="font-medium">{modalTrackingData.location}</p>
+                        </div>
+                      )}
+                      {modalTrackingData.estimatedDelivery && (
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1 flex items-center">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Estimated Delivery
+                          </p>
+                          <p className="font-medium">{modalTrackingData.estimatedDelivery}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tracking History */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Tracking History</h3>
+                    <div className="space-y-3">
+                      {modalTrackingData.events && modalTrackingData.events.length > 0 ? (
+                        modalTrackingData.events.map((event, index) => (
+                          <div
+                            key={index}
+                            className={`flex items-start space-x-4 p-4 rounded-lg ${
+                              index === 0 ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200' : 'bg-gray-50 dark:bg-gray-800'
+                            }`}
+                          >
+                            <div className="flex-shrink-0 mt-1">
+                              <div className={`w-3 h-3 rounded-full ${
+                                index === 0 ? 'bg-blue-600' : 'bg-gray-400'
+                              }`} />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium text-foreground">{event.status || event.description}</p>
+                              <p className="text-sm text-muted-foreground mt-1">{event.location}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {event.date} {event.time}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground text-center py-4">No tracking events available</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Carrier Website Link */}
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(modalTrackingData.trackingUrl, '_blank')}
+                      className="w-full"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      View on {modalTrackingData.carrier} Website
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
           {/* Header */}
           <div className="flex justify-between items-center mb-8">
             <div>
@@ -233,9 +395,35 @@ export default function ShipmentsPage() {
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{shipment.weight}</td>
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{shipment.estDelivery}</td>
                         <td className="py-3 px-4">
-                          <Button size="sm" variant="outline" disabled>
-                            •••
-                          </Button>
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                trackShipment(shipment);
+                              }}
+                              disabled={loadingTracking[shipment.id]}
+                              title="Track Package"
+                            >
+                              {loadingTracking[shipment.id] ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Search className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(getCarrierTrackingUrl(shipment.carrier, shipment.trackingNumber), '_blank');
+                              }}
+                              title="Open Carrier Website"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                   ))}

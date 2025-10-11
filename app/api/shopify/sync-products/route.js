@@ -5,11 +5,25 @@ import { createShopifyClient, fetchShopifyProducts, mapShopifyProductToSchema } 
 // POST - Sync products from Shopify to database
 export async function POST(req) {
     try {
+        // Parse request body for selective sync
+        const body = await req.json().catch(() => ({}))
+        const { storeId, selective = false, productIds = [] } = body
+
         // Get Shopify connection from database
-        const connection = await prisma.shopifyConnection.findFirst({
-            where: { isConnected: true },
-            orderBy: { createdAt: 'desc' }
-        })
+        let connection
+
+        if (storeId) {
+            // Use specific store if provided
+            connection = await prisma.shopifyConnection.findUnique({
+                where: { id: storeId }
+            })
+        } else {
+            // Fall back to first connected store
+            connection = await prisma.shopifyConnection.findFirst({
+                where: { isConnected: true },
+                orderBy: { createdAt: 'desc' }
+            })
+        }
 
         if (!connection) {
             return NextResponse.json(
@@ -24,10 +38,19 @@ export async function POST(req) {
             accessToken: connection.accessToken
         })
 
-        // Fetch all products from Shopify
+        // Fetch products from Shopify
         console.log('Fetching products from Shopify...')
-        const shopifyProducts = await fetchShopifyProducts(client)
-        console.log(`Fetched ${shopifyProducts.length} products from Shopify`)
+        let shopifyProducts = await fetchShopifyProducts(client)
+
+        // Filter for selective sync if enabled
+        if (selective && productIds.length > 0) {
+            shopifyProducts = shopifyProducts.filter(product =>
+                productIds.includes(product.id.toString())
+            )
+            console.log(`Selective sync: filtering to ${shopifyProducts.length} products`)
+        }
+
+        console.log(`Processing ${shopifyProducts.length} products from Shopify`)
 
         // Ensure "Shopify" category exists
         let shopifyCategory = await prisma.category.findFirst({

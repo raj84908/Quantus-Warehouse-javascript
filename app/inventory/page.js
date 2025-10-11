@@ -32,6 +32,7 @@ export default function InventoryPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("all");
+    const [selectedStatus, setSelectedStatus] = useState("all");
     const [showAddForm, setShowAddForm] = useState(false);
     const [showStockAdjustmentModal, setShowStockAdjustmentModal] = useState(false);
     const [stockAdjustmentItems, setStockAdjustmentItems] = useState([]);
@@ -56,7 +57,7 @@ export default function InventoryPage() {
 
     const filteredInventoryItems = useMemo(() => {
         let filtered = inventoryItems;
- 
+
         // Apply search filter
         if (debouncedSearchTerm) {
             filtered = filtered.filter(item =>
@@ -75,8 +76,13 @@ export default function InventoryPage() {
             });
         }
 
+        // Apply status filter
+        if (selectedStatus !== "all") {
+            filtered = filtered.filter(item => item.status === selectedStatus);
+        }
+
         return filtered;
-    }, [inventoryItems, debouncedSearchTerm, selectedCategory]);
+    }, [inventoryItems, debouncedSearchTerm, selectedCategory, selectedStatus]);
     
     
     // Debounce the search term
@@ -637,10 +643,16 @@ export default function InventoryPage() {
                     {statistics.map((stat, index) => {
                         const Icon = stat.icon
                         return (
-                            <Card key={index}>
+                            <Card key={index} className="border-0 shadow-sm dark:bg-gray-800/50">
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-                                    <Icon className={`h-4 w-4 ${stat.color || "text-primary"}`}/>
+                                    <div className={`p-2 rounded-lg ${
+                                        stat.color?.includes('orange') ? 'bg-orange-50 dark:bg-orange-900/20' :
+                                        stat.color?.includes('red') ? 'bg-red-50 dark:bg-red-900/20' :
+                                        'bg-blue-50 dark:bg-blue-900/20'
+                                    }`}>
+                                        <Icon className={`h-5 w-5 ${stat.color || "text-blue-600 dark:text-blue-400"}`}/>
+                                    </div>
                                 </CardHeader>
                                 <CardContent>
                                     <div className={`text-2xl font-bold ${stat.color || ""}`}>{stat.value}</div>
@@ -653,8 +665,12 @@ export default function InventoryPage() {
 
                 {/* Add Item Form */}
                 {(showAddForm || editItem) && (
-                    <div className="mb-6 p-6 border rounded-lg bg-card shadow-sm text-card-foreground">
-                        <h2 className="text-xl font-semibold mb-4">{editItem ? "Edit Inventory item":"Add New Inventory Item"}</h2>
+                    <Card className="mb-6 border-0 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-xl">{editItem ? "Edit Inventory Item":"Add New Inventory Item"}</CardTitle>
+                            <CardDescription>Fill in the product information below</CardDescription>
+                        </CardHeader>
+                        <CardContent>
                         <form onSubmit={editItem ? handleUpdateItem: handleAddItem} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* SKU */}
                             <div>
@@ -832,20 +848,17 @@ export default function InventoryPage() {
                                 </Button>
                             </div>
                         </form>
-                    </div>
+                        </CardContent>
+                    </Card>
                 )}
 
-                <Card className="mb-6">
+                <Card className="mb-6 border-0 shadow-sm">
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle>Inventory Items</CardTitle>
+                                <CardTitle>Inventory Items ({filteredInventoryItems.length})</CardTitle>
                                 <CardDescription>Manage your warehouse inventory and stock levels</CardDescription>
                             </div>
-                            <Button variant="outline" size="sm">
-                                <Filter className="mr-2 h-4 w-4"/>
-                                More Filters
-                            </Button>
                         </div>
                         <div className="flex items-center space-x-4 mt-4">
                             <div className="relative flex-1">
@@ -873,6 +886,17 @@ export default function InventoryPage() {
                                             {cat.name}
                                         </SelectItem>
                                     ))}
+                                </SelectContent>
+                            </Select>
+                            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                                <SelectTrigger className="w-48">
+                                    <SelectValue placeholder="All Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Status</SelectItem>
+                                    <SelectItem value="IN_STOCK">In Stock</SelectItem>
+                                    <SelectItem value="LOW_STOCK">Low Stock</SelectItem>
+                                    <SelectItem value="OUT_OF_STOCK">Out of Stock</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

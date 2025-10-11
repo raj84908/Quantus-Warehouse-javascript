@@ -20,19 +20,21 @@ import {
   X,
   Box,
   Store,
+  DollarSign,
 } from "lucide-react"
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: Home },
   { name: "Inventory", href: "/inventory", icon: Package },
   { name: "Orders", href: "/orders", icon: ShoppingCart },
+  { name: "Payments", href: "/payments", icon: DollarSign },
   { name: "Shipments", href: "/shipments", icon: Truck },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Reports", href: "/reports", icon: FileText },
+  { name: "Shopify", href: "/shopify", icon: Store },
   { name: "Staff", href: "/staff", icon: Users },
   { name: "Profile", href: "/profile", icon: User },
   { name: "Settings", href: "/settings", icon: Settings },
-  { name: "Shopify", href: "/shopify", icon: Store }, // Add this line
 ]
 
 export function Sidebar() {
