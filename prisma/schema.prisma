@@ -38,6 +38,7 @@ model Organization {
   people          People[]
   reports         Report[]
   invoiceSettings InvoiceSettings?
+  shippingCredentials ShippingCredentials?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -331,6 +332,28 @@ model ShopifyConnection {
   updatedAt    DateTime  @updatedAt
 
   @@index([organizationId])
+}
+
+model ShippingCredentials {
+  id                 Int       @id @default(autoincrement())
+
+  // Multi-tenancy (one per organization)
+  organizationId     String    @unique
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // UPS API Credentials
+  upsClientId        String?
+  upsClientSecret    String?
+
+  // FedEx API Credentials
+  fedexClientId      String?
+  fedexClientSecret  String?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@map("shipping_credentials")
 }
 
 enum Status {

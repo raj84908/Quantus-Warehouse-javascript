@@ -1,32 +1,30 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-const prisma = new PrismaClient()
-
-// DELETE - Remove a Shopify store connection
-export async function DELETE(request, { params }) {
+// DELETE - Remove a Shopify store connection (organization-specific)
+export const DELETE = withAuth(async (request, { params, user }) => {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { storeId } = params
 
-    // Check if store exists
-    const store = await prisma.shopifyConnection.findUnique({
-      where: { id: storeId }
+    // Check if store exists AND belongs to this organization
+    const store = await prisma.shopifyConnection.findFirst({
+      where: {
+        id: parseInt(storeId),
+        organizationId: user.organizationId  // CRITICAL: Verify ownership
+      }
     })
 
     if (!store) {
-      return NextResponse.json({ error: 'Store not found' }, { status: 404 })
+      return NextResponse.json({
+        error: 'Store not found or access denied'
+      }, { status: 404 })
     }
 
-    // Unsync all products from this store
+    // Unsync all products from this store - ONLY for this organization
     await prisma.product.updateMany({
       where: {
+        organizationId: user.organizationId,  // CRITICAL: Only this org's products
         shopifyProductId: { not: null },
         syncedFromShopify: true
       },
@@ -40,7 +38,7 @@ export async function DELETE(request, { params }) {
 
     // Delete the store connection
     await prisma.shopifyConnection.delete({
-      where: { id: storeId }
+      where: { id: store.id }
     })
 
     return NextResponse.json({
@@ -51,22 +49,31 @@ export async function DELETE(request, { params }) {
     console.error('Error removing store:', error)
     return NextResponse.json({ error: 'Failed to remove store' }, { status: 500 })
   }
-}
+})
 
-// PATCH - Update store settings
-export async function PATCH(request, { params }) {
+// PATCH - Update store settings (organization-specific)
+export const PATCH = withAuth(async (request, { params, user }) => {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { storeId } = params
     const { isActive } = await request.json()
 
+    // Verify store belongs to this organization before updating
+    const existingStore = await prisma.shopifyConnection.findFirst({
+      where: {
+        id: parseInt(storeId),
+        organizationId: user.organizationId  // CRITICAL: Verify ownership
+      }
+    })
+
+    if (!existingStore) {
+      return NextResponse.json({
+        error: 'Store not found or access denied'
+      }, { status: 404 })
+    }
+
     const store = await prisma.shopifyConnection.update({
-      where: { id: storeId },
-      data: { isActive }
+      where: { id: existingStore.id },
+      data: { isConnected: isActive }  // Update isConnected, not isActive
     })
 
     return NextResponse.json({
@@ -74,11 +81,11 @@ export async function PATCH(request, { params }) {
       store: {
         id: store.id,
         shopDomain: store.shopDomain,
-        isActive: store.isActive
+        isActive: store.isConnected
       }
     })
   } catch (error) {
     console.error('Error updating store:', error)
     return NextResponse.json({ error: 'Failed to update store' }, { status: 500 })
   }
-}
+})

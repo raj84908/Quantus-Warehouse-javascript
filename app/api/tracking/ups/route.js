@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { withAuth } from '@/lib/auth';
 
 // UPS Tracking API Integration
-export async function POST(request) {
+export const POST = withAuth(async (request, { user }) => {
   try {
     const { trackingNumber } = await request.json();
 
@@ -12,17 +14,21 @@ export async function POST(request) {
       );
     }
 
-    // Check for UPS API credentials
-    const clientId = process.env.UPS_CLIENT_ID;
-    const clientSecret = process.env.UPS_CLIENT_SECRET;
+    // Fetch organization-specific UPS API credentials
+    const shippingCreds = await prisma.shippingCredentials.findUnique({
+      where: { organizationId: user.organizationId }
+    });
+
+    const clientId = shippingCreds?.upsClientId;
+    const clientSecret = shippingCreds?.upsClientSecret;
 
     if (!clientId || !clientSecret) {
-      console.warn('UPS API credentials not configured');
+      console.warn('UPS API credentials not configured for organization:', user.organizationId);
       return NextResponse.json(
         {
           error: 'UPS API not configured',
           fallbackUrl: `https://www.ups.com/track?tracknum=${trackingNumber}`,
-          message: 'Please add UPS_CLIENT_ID and UPS_CLIENT_SECRET to your .env file'
+          message: 'Please configure UPS API credentials in Settings > Integrations'
         },
         { status: 501 }
       );
@@ -117,4 +123,4 @@ export async function POST(request) {
       { status: 500 }
     );
   }
-}
+});

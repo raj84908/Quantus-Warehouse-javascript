@@ -1,18 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-const prisma = new PrismaClient()
-
-// GET - Fetch available products from Shopify store
-export async function GET(request) {
+// GET - Fetch available products from Shopify store (organization-specific)
+export const GET = withAuth(async (request, { user }) => {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const storeId = searchParams.get('storeId')
 
@@ -20,13 +12,18 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Store ID required' }, { status: 400 })
     }
 
-    // Get store connection
-    const store = await prisma.shopifyConnection.findUnique({
-      where: { id: storeId }
+    // Get store connection and VERIFY it belongs to this organization
+    const store = await prisma.shopifyConnection.findFirst({
+      where: {
+        id: parseInt(storeId),
+        organizationId: user.organizationId  // CRITICAL: Verify organization ownership
+      }
     })
 
     if (!store) {
-      return NextResponse.json({ error: 'Store not found' }, { status: 404 })
+      return NextResponse.json({
+        error: 'Store not found or access denied'
+      }, { status: 404 })
     }
 
     // Fetch products from Shopify
@@ -73,4 +70,4 @@ export async function GET(request) {
       error: error.message || 'Failed to fetch products'
     }, { status: 500 })
   }
-}
+})

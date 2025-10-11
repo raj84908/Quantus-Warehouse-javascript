@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { withAuth } from '@/lib/auth';
 
 // FedEx Tracking API Integration
-export async function POST(request) {
+export const POST = withAuth(async (request, { user }) => {
   try {
     const { trackingNumber } = await request.json();
 
@@ -12,17 +14,21 @@ export async function POST(request) {
       );
     }
 
-    // Check for FedEx API credentials
-    const clientId = process.env.FEDEX_CLIENT_ID;
-    const clientSecret = process.env.FEDEX_CLIENT_SECRET;
+    // Fetch organization-specific FedEx API credentials
+    const shippingCreds = await prisma.shippingCredentials.findUnique({
+      where: { organizationId: user.organizationId }
+    });
+
+    const clientId = shippingCreds?.fedexClientId;
+    const clientSecret = shippingCreds?.fedexClientSecret;
 
     if (!clientId || !clientSecret) {
-      console.warn('FedEx API credentials not configured');
+      console.warn('FedEx API credentials not configured for organization:', user.organizationId);
       return NextResponse.json(
         {
           error: 'FedEx API not configured',
           fallbackUrl: `https://www.fedex.com/fedextrack/?tracknumbers=${trackingNumber}`,
-          message: 'Please add FEDEX_CLIENT_ID and FEDEX_CLIENT_SECRET to your .env file'
+          message: 'Please configure FedEx API credentials in Settings > Integrations'
         },
         { status: 501 }
       );
@@ -126,4 +132,4 @@ export async function POST(request) {
       { status: 500 }
     );
   }
-}
+});

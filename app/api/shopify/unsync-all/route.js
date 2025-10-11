@@ -1,28 +1,18 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-const prisma = new PrismaClient()
-
-// POST - Unsync all products from Shopify
-export async function POST(request) {
+// POST - Unsync all products from Shopify (organization-specific)
+export const POST = withAuth(async (request, { user }) => {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { storeId } = await request.json()
 
-    // Build where clause
+    // Build where clause - ONLY for this organization's products
     const whereClause = {
+      organizationId: user.organizationId,  // CRITICAL: Only this org's products
       syncedFromShopify: true,
       shopifyProductId: { not: null }
     }
-
-    // If storeId provided, we could filter by store (would need to add storeId field to Product model)
-    // For now, unsync all Shopify products
 
     // Count products that will be unsynced
     const count = await prisma.product.count({
@@ -51,4 +41,4 @@ export async function POST(request) {
       error: error.message || 'Failed to unsync products'
     }, { status: 500 })
   }
-}
+})

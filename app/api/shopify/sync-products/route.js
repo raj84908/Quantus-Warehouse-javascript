@@ -1,33 +1,40 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 import { createShopifyClient, fetchShopifyProducts, mapShopifyProductToSchema } from '@/lib/shopify'
 
-// POST - Sync products from Shopify to database
-export async function POST(req) {
+// POST - Sync products from Shopify to database (organization-specific)
+export const POST = withAuth(async (req, { user }) => {
     try {
         // Parse request body for selective sync
         const body = await req.json().catch(() => ({}))
         const { storeId, selective = false, productIds = [] } = body
 
-        // Get Shopify connection from database
+        // Get Shopify connection from database - MUST belong to this organization
         let connection
 
         if (storeId) {
-            // Use specific store if provided
-            connection = await prisma.shopifyConnection.findUnique({
-                where: { id: storeId }
+            // Use specific store if provided, but verify ownership
+            connection = await prisma.shopifyConnection.findFirst({
+                where: {
+                    id: storeId,
+                    organizationId: user.organizationId  // CRITICAL: Verify ownership
+                }
             })
         } else {
-            // Fall back to first connected store
+            // Fall back to organization's connected store
             connection = await prisma.shopifyConnection.findFirst({
-                where: { isConnected: true },
+                where: {
+                    organizationId: user.organizationId,  // CRITICAL: Only this org's store
+                    isConnected: true
+                },
                 orderBy: { createdAt: 'desc' }
             })
         }
 
         if (!connection) {
             return NextResponse.json(
-                { error: 'No Shopify connection found. Please connect your store first.' },
+                { error: 'No Shopify connection found for your organization. Please connect your store first.' },
                 { status: 400 }
             )
         }
@@ -52,14 +59,20 @@ export async function POST(req) {
 
         console.log(`Processing ${shopifyProducts.length} products from Shopify`)
 
-        // Ensure "Shopify" category exists
+        // Ensure "Shopify" category exists FOR THIS ORGANIZATION
         let shopifyCategory = await prisma.category.findFirst({
-            where: { name: 'Shopify' }
+            where: {
+                name: 'Shopify',
+                organizationId: user.organizationId  // CRITICAL: Org-specific category
+            }
         })
 
         if (!shopifyCategory) {
             shopifyCategory = await prisma.category.create({
-                data: { name: 'Shopify' }
+                data: {
+                    name: 'Shopify',
+                    organizationId: user.organizationId  // CRITICAL: Create for this org
+                }
             })
         }
 
@@ -96,9 +109,10 @@ export async function POST(req) {
                         throw new Error('Missing required fields: SKU or name')
                     }
 
-                    // Check if product exists by Shopify variant ID or SKU
+                    // Check if product exists by Shopify variant ID or SKU - WITHIN THIS ORGANIZATION
                     const existingProduct = await prisma.product.findFirst({
                         where: {
+                            organizationId: user.organizationId,  // CRITICAL: Only check within org
                             OR: [
                                 { shopifyVariantId: variant.id.toString() },
                                 { sku: productData.sku }
@@ -124,9 +138,12 @@ export async function POST(req) {
                         results.updated++
                         console.log(`✓ Updated: ${productData.name} (${productData.sku})`)
                     } else {
-                        // Create new product
+                        // Create new product FOR THIS ORGANIZATION
                         await prisma.product.create({
-                            data: productData
+                            data: {
+                                ...productData,
+                                organizationId: user.organizationId  // CRITICAL: Set organization
+                            }
                         })
                         results.added++
                         console.log(`✓ Added: ${productData.name} (${productData.sku})`)
@@ -172,4 +189,4 @@ export async function POST(req) {
             { status: 500 }
         )
     }
-}
+})
