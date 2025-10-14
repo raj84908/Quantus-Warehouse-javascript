@@ -17,7 +17,11 @@ export const GET = withAuth(async (request, { user }) => {
             orderBy: { createdAt: 'desc' },
             take: limit,
             include: {
-                product: true
+                product: {
+                    include: {
+                        category: true
+                    }
+                }
             }
         })
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import 
+{ useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -97,11 +98,20 @@ export default function StockAdjustmentsPage() {
         if (!filter.search) return true;
 
         const searchTerm = filter.search.toLowerCase();
+        const productName = (adjustment.product?.name || '').toLowerCase();
+        const productSku = (adjustment.product?.sku || '').toLowerCase();
+        const categoryName = (typeof adjustment.product?.category === 'object' && adjustment.product?.category?.name)
+            ? adjustment.product.category.name.toLowerCase()
+            : (typeof adjustment.product?.category === 'string' ? adjustment.product.category.toLowerCase() : '');
+        const reason = (adjustment.reason || '').toLowerCase();
+        const notes = (adjustment.notes || '').toLowerCase();
+
         return (
-            adjustment.product?.name?.toLowerCase().includes(searchTerm) ||
-            adjustment.product?.sku?.toLowerCase().includes(searchTerm) ||
-            adjustment.reason.toLowerCase().includes(searchTerm) ||
-            (adjustment.notes && adjustment.notes.toLowerCase().includes(searchTerm))
+            productName.includes(searchTerm) ||
+            productSku.includes(searchTerm) ||
+            categoryName.includes(searchTerm) ||
+            reason.includes(searchTerm) ||
+            notes.includes(searchTerm)
         );
     });
 
