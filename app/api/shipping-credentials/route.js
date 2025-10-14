@@ -11,20 +11,21 @@ export const GET = withAuth(async (request, { user }) => {
     });
 
     if (credentials) {
+      // DO NOT expose secrets to frontend - only indicate if they're configured
       return NextResponse.json({
-        upsClientId: credentials.upsClientId || "",
-        upsClientSecret: credentials.upsClientSecret || "",
-        fedexClientId: credentials.fedexClientId || "",
-        fedexClientSecret: credentials.fedexClientSecret || ""
+        hasUpsCredentials: !!(credentials.upsClientId && credentials.upsClientSecret),
+        hasFedexCredentials: !!(credentials.fedexClientId && credentials.fedexClientSecret),
+        upsConfigured: !!credentials.upsClientId,
+        fedexConfigured: !!credentials.fedexClientId
       });
     }
 
     // Return empty credentials if not configured
     return NextResponse.json({
-      upsClientId: "",
-      upsClientSecret: "",
-      fedexClientId: "",
-      fedexClientSecret: ""
+      hasUpsCredentials: false,
+      hasFedexCredentials: false,
+      upsConfigured: false,
+      fedexConfigured: false
     });
   } catch (error) {
     console.error('Error loading shipping credentials:', error);
@@ -82,7 +83,8 @@ export const POST = withAuth(async (request, { user }) => {
     return NextResponse.json({
       success: true,
       message: 'Shipping credentials saved successfully',
-      credentials
+      hasUpsCredentials: !!(credentials.upsClientId && credentials.upsClientSecret),
+      hasFedexCredentials: !!(credentials.fedexClientId && credentials.fedexClientSecret)
     });
   } catch (error) {
     console.error('Error saving shipping credentials:', error);

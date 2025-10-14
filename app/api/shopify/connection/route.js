@@ -19,7 +19,7 @@ export const GET = withAuth(async (request, { user }) => {
             })
         }
 
-        // Return connection data
+        // Return connection data WITHOUT sensitive credentials
         return NextResponse.json({
             isConnected: connection.isConnected,
             connection: {
@@ -28,9 +28,8 @@ export const GET = withAuth(async (request, { user }) => {
                 lastSyncAt: connection.lastSyncAt,
                 createdAt: connection.createdAt,
                 updatedAt: connection.updatedAt,
-                accessToken: connection.accessToken,
-                apiKey: connection.apiKey,
-                apiSecret: connection.apiSecret,
+                // DO NOT expose: accessToken, apiKey, apiSecret
+                hasCredentials: !!(connection.accessToken && connection.apiKey)
             }
         })
     } catch (error) {

@@ -32,53 +32,54 @@ export const POST = withAuth(async (req, { user }) => {
     try {
         const data = await req.json();
 
-        // Create the order record with its items
-        const order = await prisma.order.create({
-            data: {
-                orderId: data.orderId,
-                customer: data.customer,
-                email: data.email,
-                phone: data.phone || null,
-                billingAddress: data.billingAddress || null,
-                subtotal: data.subtotal,
-                total: data.total,
-                status: data.status,
-                priority: data.priority,
-                dueDate: data.dueDate,
-                assignedTo: data.assignedTo,
-                organizationId: user.organizationId,
-                items: {
-                    create: data.items.map(item => ({
-                        sku: item.sku,
-                        name: item.name,
-                        price: item.price,
-                        quantity: item.quantity,
-                        productId: item.productId
-                    }))
+        // Wrap everything in a transaction to ensure atomicity
+        const order = await prisma.$transaction(async (tx) => {
+            // Create the order record with its items
+            const newOrder = await tx.order.create({
+                data: {
+                    orderId: data.orderId,
+                    customer: data.customer,
+                    email: data.email,
+                    phone: data.phone || null,
+                    billingAddress: data.billingAddress || null,
+                    subtotal: data.subtotal,
+                    total: data.total,
+                    status: data.status,
+                    priority: data.priority,
+                    dueDate: data.dueDate,
+                    assignedTo: data.assignedTo,
+                    organizationId: user.organizationId,
+                    items: {
+                        create: data.items.map(item => ({
+                            sku: item.sku,
+                            name: item.name,
+                            price: item.price,
+                            quantity: item.quantity,
+                            productId: item.productId
+                        }))
+                    }
+                },
+                include: {
+                    items: true
                 }
-            },
-            include: {
-                items: true
-            }
-        });
+            });
 
-        // Update inventory quantities for each item in the order
-        for (const item of data.items) {
-            try {
+            // Update inventory quantities for each item in the order
+            for (const item of data.items) {
                 // Find the product by SKU in this organization
-                const product = await prisma.product.findFirst({
+                const product = await tx.product.findFirst({
                     where: {
                         sku: item.sku,
                         organizationId: user.organizationId
                     }
                 });
-                
+
                 if (product) {
                     // Calculate new stock level
                     const newStock = Math.max(0, product.stock - item.quantity);
-                    
-                    // Update product stock
-                    await prisma.product.update({
+
+                    // Update product stock atomically
+                    await tx.product.update({
                         where: { id: product.id },
                         data: {
                             stock: newStock,
@@ -87,9 +88,9 @@ export const POST = withAuth(async (req, { user }) => {
                                     newStock <= product.minStock ? 'LOW_STOCK' : 'IN_STOCK'
                         }
                     });
-                    
+
                     // Create a stock adjustment record
-                    await prisma.stockAdjustment.create({
+                    await tx.stockAdjustment.create({
                         data: {
                             productId: product.id,
                             quantity: -item.quantity, // Negative for deduction
@@ -101,13 +102,12 @@ export const POST = withAuth(async (req, { user }) => {
                         }
                     });
                 }
-            } catch (itemError) {
-                console.error(`Error updating inventory for item ${item.sku}:`, itemError);
-                // Continue with the next item
             }
-        }
 
-        return NextResponse.json( order, { status: 201 });
+            return newOrder;
+        });
+
+        return NextResponse.json(order, { status: 201 });
     } catch (error) {
         console.error("Error creating order:", error);
         return NextResponse.json(

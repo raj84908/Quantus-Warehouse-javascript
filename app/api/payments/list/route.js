@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-const prisma = new PrismaClient()
-
-export async function GET(request) {
+export const GET = withAuth(async (request, { user }) => {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const timeRange = searchParams.get('timeRange') || '365'
 
@@ -23,9 +15,10 @@ export async function GET(request) {
       dateThreshold.setFullYear(2000) // All time
     }
 
-    // Get all orders with payment information
+    // Get all orders with payment information - FILTERED BY ORGANIZATION
     const orders = await prisma.order.findMany({
       where: {
+        organizationId: user.organizationId,
         createdAt: {
           gte: dateThreshold
         }
@@ -87,4 +80,4 @@ export async function GET(request) {
     console.error('Error fetching payments list:', error)
     return NextResponse.json({ error: 'Failed to fetch payments list' }, { status: 500 })
   }
-}
+})
