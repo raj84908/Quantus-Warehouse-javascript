@@ -102,7 +102,7 @@ async function generateInventoryReport(startDate, organizationId) {
         totalProducts: products.length,
         totalValue,
         lowStockCount,
-        products: products.slice(0, 20) // Top 20 for the report
+        products: products // Show all products
     }
 }
 
@@ -126,7 +126,7 @@ async function generateSalesReport(startDate, organizationId) {
         totalRevenue,
         completedOrders,
         averageOrderValue: orders.length > 0 ? totalRevenue / orders.length : 0,
-        orders: orders.slice(0, 10)
+        orders: orders // Show all orders
     }
 }
 
@@ -152,7 +152,7 @@ async function generateOrderReport(startDate, organizationId) {
         completedOrders: completedOrders.length,
         processingOrders: orders.filter(o => o.status === 'Processing').length,
         avgFulfillmentTime,
-        orders: orders.slice(0, 15)
+        orders: orders // Show all orders
     }
 }
 
