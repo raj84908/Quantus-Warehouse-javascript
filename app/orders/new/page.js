@@ -54,11 +54,18 @@ export default function NewOrderPage() {
         fetchProducts();
     }, []);
 
-    const filteredProducts = products.filter(product =>
-        product.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-        product.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
-        (product.category?.name || '').toLowerCase().includes(productSearch.toLowerCase())
-    );
+    const filteredProducts = products.filter(product => {
+        const searchLower = productSearch.toLowerCase();
+        const productName = (product.name || '').toLowerCase();
+        const productSku = (product.sku || '').toLowerCase();
+        const categoryName = (typeof product.category === 'object' && product.category?.name)
+            ? product.category.name.toLowerCase()
+            : (typeof product.category === 'string' ? product.category.toLowerCase() : '');
+
+        return productName.includes(searchLower) ||
+               productSku.includes(searchLower) ||
+               categoryName.includes(searchLower);
+    });
 
     const addItemToOrder = (product) => {
         const existingItem = orderItems.find(item => item.sku === product.sku);
@@ -244,7 +251,11 @@ export default function NewOrderPage() {
                                                         <div className="flex items-center space-x-4">
                                                             <span className="text-lg font-bold text-green-600">${product.value}</span>
                                                             <Badge variant="outline" className="text-xs">
-                                                                {product.category?.name}
+                                                                {typeof product.category === 'object' && product.category?.name
+                                                                    ? product.category.name
+                                                                    : typeof product.category === 'string'
+                                                                    ? product.category
+                                                                    : 'Uncategorized'}
                                                             </Badge>
                                                             <span className="text-sm text-muted-foreground">
                                                                 Stock: {product.stock}

@@ -50,6 +50,9 @@ export default function InventoryPage() {
         status: 'IN_STOCK',
         image: null,
     });
+    const [showAddCategory, setShowAddCategory] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [categoryLoading, setCategoryLoading] = useState(false);
 
     const API_BASE = '';
     const [editItem, setEditItem] = useState(null);
@@ -94,17 +97,17 @@ export default function InventoryPage() {
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
-    useEffect(() => {
-        const fetchCategories = async () => {
-            try {
-                const res = await fetch(`${API_BASE}/api/categories`); // make sure you have this route
-                const data = await res.json();
-                setCategories(data);
-            } catch (err) {
-                console.error('Failed to fetch categories:', err);
-            }
-        };
+    const fetchCategories = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/categories`); // make sure you have this route
+            const data = await res.json();
+            setCategories(data);
+        } catch (err) {
+            console.error('Failed to fetch categories:', err);
+        }
+    };
 
+    useEffect(() => {
         fetchCategories();
     }, []);
 
@@ -219,6 +222,39 @@ export default function InventoryPage() {
             ...prev,
             [name]: processedValue
         }));
+    };
+
+    const handleAddCategory = async (e) => {
+        e.preventDefault();
+        if (!newCategoryName.trim()) return;
+
+        setCategoryLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/categories`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newCategoryName.trim() })
+            });
+
+            if (!res.ok) throw new Error('Failed to create category');
+
+            const newCategory = await res.json();
+
+            // Refresh categories list
+            await fetchCategories();
+
+            // Auto-select the newly created category in the form
+            setNewItem(prev => ({ ...prev, categoryId: newCategory.id }));
+
+            // Close modal and reset
+            setShowAddCategory(false);
+            setNewCategoryName('');
+        } catch (error) {
+            console.error('Error creating category:', error);
+            alert('Failed to create category. Please try again.');
+        } finally {
+            setCategoryLoading(false);
+        }
     };
 
 
@@ -699,23 +735,35 @@ export default function InventoryPage() {
                             {/* Category */}
                             <div>
                                 <label className="block text-sm font-medium mb-1 text-muted-foreground">Category</label>
-                                <Select
-                                    value={newItem.categoryId ? newItem.categoryId.toString() : ""}
-                                    onValueChange={(id) =>
-                                        setNewItem((prev) => ({ ...prev, categoryId: Number(id) }))
-                                    }
-                                >
-                                    <SelectTrigger className="w-48">
-                                        <SelectValue placeholder="Select Category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {categories.map((cat) => (
-                                            <SelectItem key={cat.id} value={cat.id.toString()}>
-                                                {cat.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <div className="flex items-center gap-2">
+                                    <Select
+                                        value={newItem.categoryId ? newItem.categoryId.toString() : ""}
+                                        onValueChange={(id) =>
+                                            setNewItem((prev) => ({ ...prev, categoryId: Number(id) }))
+                                        }
+                                    >
+                                        <SelectTrigger className="w-48">
+                                            <SelectValue placeholder="Select Category" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {categories.map((cat) => (
+                                                <SelectItem key={cat.id} value={cat.id.toString()}>
+                                                    {cat.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setShowAddCategory(true)}
+                                        className="whitespace-nowrap"
+                                    >
+                                        <Plus className="h-4 w-4 mr-1" />
+                                        Add Category
+                                    </Button>
+                                </div>
                             </div>
 
 
@@ -1013,6 +1061,77 @@ export default function InventoryPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Add Category Modal */}
+                {showAddCategory && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <Card className="w-full max-w-md">
+                            <CardHeader>
+                                <div className="flex justify-between items-center">
+                                    <CardTitle>Add New Category</CardTitle>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setShowAddCategory(false);
+                                            setNewCategoryName('');
+                                        }}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                <CardDescription>Create a new product category</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <form onSubmit={handleAddCategory}>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2 text-muted-foreground">
+                                                Category Name
+                                            </label>
+                                            <Input
+                                                type="text"
+                                                value={newCategoryName}
+                                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                                placeholder="Enter category name"
+                                                required
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setShowAddCategory(false);
+                                                    setNewCategoryName('');
+                                                }}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                type="submit"
+                                                disabled={categoryLoading || !newCategoryName.trim()}
+                                            >
+                                                {categoryLoading ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                                                        Creating...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Plus className="h-4 w-4 mr-2" />
+                                                        Create Category
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
             </div>
         </div>
     );
