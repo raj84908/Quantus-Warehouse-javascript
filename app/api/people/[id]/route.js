@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
+import { withAuth } from '@/lib/auth'
 
 // GET /api/people/[id] - Get specific person
-export async function GET(request, { params }) {
+export const GET = withAuth(async (request, { params, user }) => {
     try {
-        const person = await prisma.people.findUnique({
-            where: { id: Number(params.id) }
+        const id = parseInt(params.id)
+        if (isNaN(id)) {
+            return NextResponse.json({ error: 'Invalid person ID' }, { status: 400 })
+        }
+
+        const person = await prisma.people.findFirst({
+            where: {
+                id,
+                organizationId: user.organizationId
+            }
         })
 
         if (!person) {
@@ -18,11 +26,16 @@ export async function GET(request, { params }) {
         console.error('Error fetching person:', error)
         return NextResponse.json({ error: 'Failed to fetch person' }, { status: 500 })
     }
-}
+})
 
 // PUT /api/people/[id] - Update specific person
-export async function PUT(request, { params }) {
+export const PUT = withAuth(async (request, { params, user }) => {
     try {
+        const id = parseInt(params.id)
+        if (isNaN(id)) {
+            return NextResponse.json({ error: 'Invalid person ID' }, { status: 400 })
+        }
+
         const data = await request.json()
 
         // Validate fields
@@ -30,11 +43,24 @@ export async function PUT(request, { params }) {
             return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
         }
 
-        // Check if email exists on different person
+        // Verify person belongs to user's organization
+        const existingPerson = await prisma.people.findFirst({
+            where: {
+                id,
+                organizationId: user.organizationId
+            }
+        })
+
+        if (!existingPerson) {
+            return NextResponse.json({ error: 'Person not found' }, { status: 404 })
+        }
+
+        // Check if email exists on different person IN THIS ORGANIZATION
         const emailExists = await prisma.people.findFirst({
             where: {
                 email: data.email,
-                NOT: { id: Number(params.id) }
+                organizationId: user.organizationId,
+                NOT: { id }
             }
         })
 
@@ -43,7 +69,7 @@ export async function PUT(request, { params }) {
         }
 
         const updatedPerson = await prisma.people.update({
-            where: { id: Number(params.id) },
+            where: { id },
             data: {
                 ...data,
                 updatedAt: new Date()
@@ -53,29 +79,37 @@ export async function PUT(request, { params }) {
         return NextResponse.json(updatedPerson)
     } catch (error) {
         console.error('Error updating person:', error)
-
-        if (error.code === 'P2025') {
-            // Record not found error
-            return NextResponse.json({ error: 'Person not found' }, { status: 404 })
-        }
         return NextResponse.json({ error: 'Failed to update person' }, { status: 500 })
     }
-}
+})
 
 // DELETE /api/people/[id] - Delete specific person
-export async function DELETE(request, { params }) {
+export const DELETE = withAuth(async (request, { params, user }) => {
     try {
-        const deletedPerson = await prisma.people.delete({
-            where: { id: Number(params.id) }
+        const id = parseInt(params.id)
+        if (isNaN(id)) {
+            return NextResponse.json({ error: 'Invalid person ID' }, { status: 400 })
+        }
+
+        // Verify person belongs to user's organization
+        const person = await prisma.people.findFirst({
+            where: {
+                id,
+                organizationId: user.organizationId
+            }
         })
 
-        return NextResponse.json({ message: 'Person deleted successfully', person: deletedPerson })
-    } catch (error) {
-        console.error('Error deleting person:', error)
-
-        if (error.code === 'P2025') {
+        if (!person) {
             return NextResponse.json({ error: 'Person not found' }, { status: 404 })
         }
+
+        await prisma.people.delete({
+            where: { id }
+        })
+
+        return NextResponse.json({ message: 'Person deleted successfully' })
+    } catch (error) {
+        console.error('Error deleting person:', error)
         return NextResponse.json({ error: 'Failed to delete person' }, { status: 500 })
     }
-}
+})

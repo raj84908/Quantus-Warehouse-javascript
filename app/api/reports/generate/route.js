@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 import fs from 'fs'
 import path from 'path'
 
 // POST generate report
-export async function POST(request) {
+export const POST = withAuth(async (request, { user }) => {
     try {
         const { type, timeRange, format } = await request.json();
         const days = parseInt(timeRange);
+
+        if (isNaN(days) || days <= 0) {
+            return NextResponse.json({ error: 'Invalid time range' }, { status: 400 });
+        }
 
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
@@ -16,21 +21,22 @@ export async function POST(request) {
         let reportName = type;
         let category = getReportCategory(type);
 
+        // Pass organizationId to all report generators
         switch (type) {
             case 'Inventory Summary':
-                reportData = await generateInventoryReport(startDate);
+                reportData = await generateInventoryReport(startDate, user.organizationId);
                 break;
             case 'Sales Performance':
-                reportData = await generateSalesReport(startDate);
+                reportData = await generateSalesReport(startDate, user.organizationId);
                 break;
             case 'Order Fulfillment':
-                reportData = await generateOrderReport(startDate);
+                reportData = await generateOrderReport(startDate, user.organizationId);
                 break;
             case 'Low Stock Alert':
-                reportData = await generateLowStockReport();
+                reportData = await generateLowStockReport(user.organizationId);
                 break;
             case 'Financial Summary':
-                reportData = await generateFinancialReport(startDate);
+                reportData = await generateFinancialReport(startDate, user.organizationId);
                 break;
             default:
                 return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
@@ -56,7 +62,7 @@ export async function POST(request) {
             { status: 500 }
         );
     }
-}
+})
 
 
 // Helper functions
@@ -78,8 +84,11 @@ function getReportDescription(type) {
     return descriptions[type] || 'Warehouse report'
 }
 
-async function generateInventoryReport(startDate) {
+async function generateInventoryReport(startDate, organizationId) {
     const products = await prisma.product.findMany({
+        where: {
+            organizationId
+        },
         include: {
             category: true
         }
@@ -97,9 +106,10 @@ async function generateInventoryReport(startDate) {
     }
 }
 
-async function generateSalesReport(startDate) {
+async function generateSalesReport(startDate, organizationId) {
     const orders = await prisma.order.findMany({
         where: {
+            organizationId,
             createdAt: { gte: startDate }
         },
         include: {
@@ -120,9 +130,10 @@ async function generateSalesReport(startDate) {
     }
 }
 
-async function generateOrderReport(startDate) {
+async function generateOrderReport(startDate, organizationId) {
     const orders = await prisma.order.findMany({
         where: {
+            organizationId,
             createdAt: { gte: startDate }
         }
     })
@@ -145,9 +156,10 @@ async function generateOrderReport(startDate) {
     }
 }
 
-async function generateLowStockReport() {
+async function generateLowStockReport(organizationId) {
     const lowStockProducts = await prisma.product.findMany({
         where: {
+            organizationId,
             OR: [
                 { status: 'LOW_STOCK' },
                 { status: 'OUT_OF_STOCK' }
@@ -167,9 +179,10 @@ async function generateLowStockReport() {
     }
 }
 
-async function generateFinancialReport(startDate) {
+async function generateFinancialReport(startDate, organizationId) {
     const orders = await prisma.order.findMany({
         where: {
+            organizationId,
             createdAt: { gte: startDate }
         }
     })
@@ -177,7 +190,11 @@ async function generateFinancialReport(startDate) {
     const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
     const totalSubtotal = orders.reduce((sum, order) => sum + order.subtotal, 0)
 
-    const products = await prisma.product.findMany()
+    const products = await prisma.product.findMany({
+        where: {
+            organizationId
+        }
+    })
     const totalInventoryValue = products.reduce((sum, product) => sum + (product.value * product.stock), 0)
 
     return {

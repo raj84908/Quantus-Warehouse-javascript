@@ -1,20 +1,25 @@
 import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma'
-
+import { withAuth } from '@/lib/auth'
 
 // GET analytics data
-export async function GET(request) {
+export const GET = withAuth(async (request, { user }) => {
     const { searchParams } = new URL(request.url)
     const timeRange = searchParams.get('timeRange') || '30'
     const days = parseInt(timeRange)
+
+    if (isNaN(days) || days <= 0) {
+        return NextResponse.json({ error: 'Invalid time range' }, { status: 400 })
+    }
 
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
 
     try {
-        // Revenue calculation from orders
+        // Revenue calculation from orders - FILTERED BY ORGANIZATION
         const revenueData = await prisma.order.aggregate({
             where: {
+                organizationId: user.organizationId,
                 createdAt: {
                     gte: startDate
                 }
@@ -32,6 +37,7 @@ export async function GET(request) {
 
         const previousRevenueData = await prisma.order.aggregate({
             where: {
+                organizationId: user.organizationId,
                 createdAt: {
                     gte: previousStartDate,
                     lt: previousEndDate
@@ -45,6 +51,7 @@ export async function GET(request) {
         // Orders processed count
         const ordersCount = await prisma.order.count({
             where: {
+                organizationId: user.organizationId,
                 createdAt: {
                     gte: startDate
                 }
@@ -53,6 +60,7 @@ export async function GET(request) {
 
         const previousOrdersCount = await prisma.order.count({
             where: {
+                organizationId: user.organizationId,
                 createdAt: {
                     gte: previousStartDate,
                     lt: previousEndDate
@@ -60,9 +68,12 @@ export async function GET(request) {
             }
         })
 
-        // Stock adjustments for inventory activity
+        // Stock adjustments for inventory activity - FILTERED BY ORGANIZATION
         const stockAdjustments = await prisma.stockAdjustment.count({
             where: {
+                product: {
+                    organizationId: user.organizationId
+                },
                 createdAt: {
                     gte: startDate
                 }
@@ -71,6 +82,9 @@ export async function GET(request) {
 
         const previousStockAdjustments = await prisma.stockAdjustment.count({
             where: {
+                product: {
+                    organizationId: user.organizationId
+                },
                 createdAt: {
                     gte: previousStartDate,
                     lt: previousEndDate
@@ -81,6 +95,7 @@ export async function GET(request) {
         // Calculate customer satisfaction (based on completed vs total orders)
         const completedOrders = await prisma.order.count({
             where: {
+                organizationId: user.organizationId,
                 status: 'Completed',
                 createdAt: {
                     gte: startDate
@@ -93,6 +108,7 @@ export async function GET(request) {
         // Previous period satisfaction
         const previousCompletedOrders = await prisma.order.count({
             where: {
+                organizationId: user.organizationId,
                 status: 'Completed',
                 createdAt: {
                     gte: previousStartDate,
@@ -140,4 +156,4 @@ export async function GET(request) {
             { status: 500 }
         )
     }
-}
+})

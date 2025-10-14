@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
 // POST /api/orders/[id]/partial-payments
-// POST /api/orders/[id]/partial-payments
-export async function POST(request, { params }) {
+export const POST = withAuth(async (request, { params, user }) => {
     try {
         const orderId = parseInt(params.id)
 
@@ -17,9 +17,12 @@ export async function POST(request, { params }) {
             return NextResponse.json({ error: "Invalid amount" }, { status: 400 })
         }
 
-        // Verify order exists
-        const order = await prisma.order.findUnique({
-            where: { id: orderId },
+        // Verify order exists AND belongs to user's organization
+        const order = await prisma.order.findFirst({
+            where: {
+                id: orderId,
+                organizationId: user.organizationId
+            },
             include: { partialPayments: true }
         })
 
@@ -57,15 +60,27 @@ export async function POST(request, { params }) {
             details: error.message
         }, { status: 500 })
     }
-}
+})
 
 // GET /api/orders/[id]/partial-payments
-export async function GET(request, { params }) {
+export const GET = withAuth(async (request, { params, user }) => {
     try {
         const orderId = parseInt(params.id)
 
         if (isNaN(orderId)) {
             return NextResponse.json({ error: "Invalid order ID" }, { status: 400 })
+        }
+
+        // Verify order belongs to user's organization
+        const order = await prisma.order.findFirst({
+            where: {
+                id: orderId,
+                organizationId: user.organizationId
+            }
+        })
+
+        if (!order) {
+            return NextResponse.json({ error: "Order not found" }, { status: 404 })
         }
 
         const payments = await prisma.partialPayment.findMany({
@@ -80,4 +95,4 @@ export async function GET(request, { params }) {
             error: "Failed to fetch partial payments"
         }, { status: 500 })
     }
-}
+})

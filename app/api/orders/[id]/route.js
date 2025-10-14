@@ -149,12 +149,21 @@ export const PATCH = withAuth(async (request, { params, user }) => {
 
 
 // Get a specific order by ID
-export async function GET(_, { params }) {
+export const GET = withAuth(async (request, { params, user }) => {
     try {
-        const { id } = params;
+        const id = parseInt(params.id);
+        if (isNaN(id)) {
+            return NextResponse.json(
+                { error: "Invalid order ID" },
+                { status: 400 }
+            );
+        }
 
-        const order = await prisma.order.findUnique({
-            where: { id: parseInt(id) },
+        const order = await prisma.order.findFirst({
+            where: {
+                id,
+                organizationId: user.organizationId
+            },
             include: {
                 items: true
             }
@@ -175,7 +184,7 @@ export async function GET(_, { params }) {
             { status: 500 }
         );
     }
-}
+})
 
 // DELETE /api/orders/:id
 export const DELETE = withAuth(async (request, { params, user }) => {
