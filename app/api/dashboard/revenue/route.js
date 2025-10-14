@@ -5,6 +5,9 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 // GET - Get revenue statistics for dashboard
 export async function GET(request) {
   try {
