@@ -37,6 +37,7 @@ model Organization {
   shopifyConnections ShopifyConnection[]
   people          People[]
   reports         Report[]
+  scheduledReports ScheduledReport[]
   invoiceSettings InvoiceSettings?
   shippingCredentials ShippingCredentials?
 
@@ -230,6 +231,30 @@ model Report {
   updatedAt   DateTime @updatedAt
 
   @@index([organizationId])
+}
+
+model ScheduledReport {
+  id             Int      @id @default(autoincrement())
+
+  // Multi-tenancy
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name           String
+  reportType     String   // e.g., "Inventory Summary", "Sales Performance"
+  frequency      String   // "DAILY", "WEEKLY", "MONTHLY"
+  format         String   // "HTML", "CSV", "EXCEL"
+  timeRange      Int      // Number of days to include in report
+  isActive       Boolean  @default(true)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime
+  emailRecipients String? // Comma-separated email addresses
+  createdBy      String?  // User who created the schedule
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([nextRunAt, isActive])
 }
 
 model Profile {

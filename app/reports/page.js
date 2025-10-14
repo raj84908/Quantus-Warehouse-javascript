@@ -3,16 +3,22 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FileText, Download, BarChart3, Database, Clock, Plus, Filter } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { FileText, Download, BarChart3, Database, Clock, Plus, Filter, Calendar, Eye, Trash2 } from "lucide-react"
 import { useState, useEffect } from 'react'
 
 function ReportsPage() {
   const [timeRange, setTimeRange] = useState('30')
+  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' })
+  const [useCustomDate, setUseCustomDate] = useState(false)
+  const [exportFormat, setExportFormat] = useState('HTML')
   const [activeCategory, setActiveCategory] = useState('Overview')
   const [reportsData, setReportsData] = useState(null)
   const [recentReports, setRecentReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [previewReport, setPreviewReport] = useState(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
     fetchReportsData()
@@ -26,16 +32,13 @@ function ReportsPage() {
         fetch(`/api/reports/recent`)
       ])
 
-      const statsText = await statsRes.text()
-      const reportsText = await reportsRes.text()
-      console.log('Stats raw =>', statsText)
-      console.log('Reports raw =>', reportsText)
+      if (statsRes.ok && reportsRes.ok) {
+        const statsData = await statsRes.json()
+        const reportsListData = await reportsRes.json()
 
-      const statsData = JSON.parse(statsText)
-      const reportsListData = JSON.parse(reportsText)
-
-      setReportsData(statsData)
-      setRecentReports(reportsListData)
+        setReportsData(statsData)
+        setRecentReports(reportsListData)
+      }
     } catch (error) {
       console.error('Failed to fetch reports data:', error)
     } finally {
@@ -43,47 +46,64 @@ function ReportsPage() {
     }
   }
 
-
-  const generateReport = async (type) => {
+  const generateReport = async (type, preview = false) => {
     setGenerating(true)
     try {
+      const payload = {
+        type,
+        format: exportFormat
+      }
+
+      // Use custom date range if selected and valid
+      if (useCustomDate && customDateRange.start && customDateRange.end) {
+        payload.startDate = customDateRange.start
+        payload.endDate = customDateRange.end
+      } else {
+        payload.timeRange = timeRange
+      }
+
       const response = await fetch('/api/reports/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          type,
-          timeRange,
-          format: 'HTML' // Change to HTML since we're generating HTML files
-        })
+        body: JSON.stringify(payload)
       })
 
       if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${type.toLowerCase().replace(/\s+/g, '_')}_report_${new Date().toISOString().split('T')[0]}.html`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
+        if (preview) {
+          // For preview, show the content in a modal
+          const content = await response.text()
+          setPreviewReport({ type, content, format: exportFormat })
+          setShowPreview(true)
+        } else {
+          // For download, handle the blob
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          const extension = exportFormat === 'CSV' ? 'csv' : 'html'
+          a.download = `${type.toLowerCase().replace(/\s+/g, '_')}_report_${new Date().toISOString().split('T')[0]}.${extension}`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
 
-        // Refresh the reports list
-        fetchReportsData()
+          // Refresh the reports list
+          fetchReportsData()
+        }
       } else {
-        // Log status and detailed server error message
         const errorText = await response.text()
         console.error('Failed to generate report:', response.status, errorText)
+        alert('Failed to generate report. Please try again.')
       }
     } catch (error) {
       console.error('Error generating report:', error)
+      alert('Error generating report. Please check your connection.')
     } finally {
       setGenerating(false)
     }
   }
-
 
   const downloadReport = async (reportId) => {
     try {
@@ -101,6 +121,25 @@ function ReportsPage() {
       }
     } catch (error) {
       console.error('Error downloading report:', error)
+    }
+  }
+
+  const deleteReport = async (reportId) => {
+    if (!confirm('Are you sure you want to delete this report?')) return
+
+    try {
+      const response = await fetch(`/api/reports/${reportId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        fetchReportsData()
+      } else {
+        alert('Failed to delete report')
+      }
+    } catch (error) {
+      console.error('Error deleting report:', error)
+      alert('Error deleting report')
     }
   }
 
@@ -133,7 +172,7 @@ function ReportsPage() {
     {
       title: "Recent Activity",
       value: reportsData.automatedReports?.toString() || "0",
-      description: "Reports this week",
+      description: "Reports this period",
       icon: Clock,
     },
     {
@@ -182,21 +221,9 @@ function ReportsPage() {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Reports</h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">Generate and download warehouse reports</p>
             </div>
-            <div className="flex space-x-3">
-              <Select value={timeRange} onValueChange={setTimeRange}>
-                <SelectTrigger className="w-48 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-700">
-                  <SelectItem value="7">Last 7 days</SelectItem>
-                  <SelectItem value="30">Last 30 days</SelectItem>
-                  <SelectItem value="90">Last 90 days</SelectItem>
-                  <SelectItem value="365">Last year</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
+          {/* Statistics Cards */}
           <div className="mb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {stats.map((stat, index) => {
@@ -218,6 +245,114 @@ function ReportsPage() {
             </div>
           </div>
 
+          {/* Report Configuration */}
+          <Card className="mb-6 border-0 shadow-sm dark:bg-gray-800/50">
+            <CardHeader>
+              <CardTitle className="text-lg text-gray-900 dark:text-white">Report Configuration</CardTitle>
+              <CardDescription className="text-sm text-gray-500 dark:text-gray-400">
+                Configure your report settings before generating
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Date Range Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date Range
+                  </label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                          type="radio"
+                          id="preset-date"
+                          checked={!useCustomDate}
+                          onChange={() => setUseCustomDate(false)}
+                          className="h-4 w-4 text-blue-600"
+                      />
+                      <label htmlFor="preset-date" className="text-sm text-gray-700 dark:text-gray-300">
+                        Preset Range
+                      </label>
+                    </div>
+                    {!useCustomDate && (
+                        <Select value={timeRange} onValueChange={setTimeRange}>
+                          <SelectTrigger className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-700">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-700">
+                            <SelectItem value="7">Last 7 days</SelectItem>
+                            <SelectItem value="30">Last 30 days</SelectItem>
+                            <SelectItem value="90">Last 90 days</SelectItem>
+                            <SelectItem value="365">Last year</SelectItem>
+                          </SelectContent>
+                        </Select>
+                    )}
+                    <div className="flex items-center space-x-2">
+                      <input
+                          type="radio"
+                          id="custom-date"
+                          checked={useCustomDate}
+                          onChange={() => setUseCustomDate(true)}
+                          className="h-4 w-4 text-blue-600"
+                      />
+                      <label htmlFor="custom-date" className="text-sm text-gray-700 dark:text-gray-300">
+                        Custom Range
+                      </label>
+                    </div>
+                    {useCustomDate && (
+                        <div className="space-y-2">
+                          <Input
+                              type="date"
+                              value={customDateRange.start}
+                              onChange={(e) => setCustomDateRange({ ...customDateRange, start: e.target.value })}
+                              className="text-sm"
+                              placeholder="Start date"
+                          />
+                          <Input
+                              type="date"
+                              value={customDateRange.end}
+                              onChange={(e) => setCustomDateRange({ ...customDateRange, end: e.target.value })}
+                              className="text-sm"
+                              placeholder="End date"
+                          />
+                        </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Export Format */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Export Format
+                  </label>
+                  <Select value={exportFormat} onValueChange={setExportFormat}>
+                    <SelectTrigger className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-700">
+                      <SelectItem value="HTML">HTML (Web View)</SelectItem>
+                      <SelectItem value="CSV">CSV (Spreadsheet)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    {exportFormat === 'HTML' ? 'Best for viewing and printing' : 'Best for data analysis in Excel'}
+                  </p>
+                </div>
+
+                {/* Info */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Quick Tips</h4>
+                  <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                    <li>• Use Preview to see report before downloading</li>
+                    <li>• CSV format works great with Excel</li>
+                    <li>• Reports are automatically saved</li>
+                    <li>• Custom date ranges give more control</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Generate New Report */}
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Generate New Report</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -228,20 +363,32 @@ function ReportsPage() {
                         <h3 className="font-medium text-gray-900 dark:text-white mb-1">{report.name}</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{report.description}</p>
                       </div>
-                      <Button
-                          onClick={() => generateReport(report.name)}
-                          disabled={generating}
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        {generating ? 'Generating...' : 'Generate'}
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button
+                            onClick={() => generateReport(report.name, true)}
+                            disabled={generating}
+                            variant="outline"
+                            className="flex-1 h-9 text-sm"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Preview
+                        </Button>
+                        <Button
+                            onClick={() => generateReport(report.name, false)}
+                            disabled={generating}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          {generating ? 'Generating...' : 'Download'}
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
               ))}
             </div>
           </div>
 
+          {/* Category Tabs */}
           <div className="mb-4">
             <div className="flex space-x-1 border-b border-gray-100 dark:border-gray-700">
               {reportCategories.map((category, index) => (
@@ -257,6 +404,7 @@ function ReportsPage() {
             </div>
           </div>
 
+          {/* Recent Reports */}
           <Card className="border-0 shadow-sm dark:bg-gray-800/50">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg text-gray-900 dark:text-white">
@@ -280,21 +428,34 @@ function ReportsPage() {
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
                               {report.category}
                             </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                              {report.format}
+                            </span>
                             <span className="text-xs text-gray-500 dark:text-gray-400">
                               {formatFileSize(report.size)} • {formatDate(report.createdAt)}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => downloadReport(report.id)}
-                          className="ml-4 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </Button>
+                      <div className="flex items-center space-x-2 ml-4">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => downloadReport(report.id)}
+                            className="hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteReport(report.id)}
+                            className="hover:bg-red-100 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                 )) : (
                     <div className="text-center py-12">
@@ -307,6 +468,50 @@ function ReportsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Preview Modal */}
+        {showPreview && previewReport && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Preview: {previewReport.type}
+                  </h3>
+                  <div className="flex space-x-2">
+                    <Button
+                        onClick={() => {
+                          setShowPreview(false)
+                          generateReport(previewReport.type, false)
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
+                    <Button
+                        onClick={() => setShowPreview(false)}
+                        variant="outline"
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto p-4">
+                  {previewReport.format === 'HTML' ? (
+                      <iframe
+                          srcDoc={previewReport.content}
+                          className="w-full h-full border border-gray-200 dark:border-gray-700 rounded"
+                          title="Report Preview"
+                      />
+                  ) : (
+                      <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-4 rounded overflow-auto">
+                        {previewReport.content}
+                      </pre>
+                  )}
+                </div>
+              </div>
+            </div>
+        )}
       </div>
   )
 }

@@ -1,53 +1,118 @@
 import { NextResponse } from "next/server"
-import { prisma } from '@/lib/prisma'
 import { withAuth } from '@/lib/auth'
-import fs from 'fs'
-import path from 'path'
+import {
+    generateReportData,
+    formatAsHTML,
+    formatAsCSV,
+    saveReport,
+    REPORT_TYPES,
+    EXPORT_FORMATS
+} from '@/lib/reportGenerator'
 
 // POST generate report
 export const POST = withAuth(async (request, { user }) => {
     try {
-        const { type, timeRange, format } = await request.json();
-        const days = parseInt(timeRange);
+        const body = await request.json();
+        const {
+            type,
+            timeRange,
+            format = 'HTML',
+            startDate: customStartDate,
+            endDate: customEndDate,
+            filters = {}
+        } = body;
 
-        if (isNaN(days) || days <= 0) {
-            return NextResponse.json({ error: 'Invalid time range' }, { status: 400 });
+        // Validate inputs
+        if (!type) {
+            return NextResponse.json({ error: 'Report type is required' }, { status: 400 });
         }
 
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
+        // Calculate date range
+        let startDate, endDate;
 
-        let reportData = {};
-        let reportName = type;
-        let category = getReportCategory(type);
+        if (customStartDate && customEndDate) {
+            // Custom date range provided
+            startDate = new Date(customStartDate);
+            endDate = new Date(customEndDate);
 
-        // Pass organizationId to all report generators
-        switch (type) {
-            case 'Inventory Summary':
-                reportData = await generateInventoryReport(startDate, user.organizationId);
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
+            }
+
+            if (startDate > endDate) {
+                return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
+            }
+        } else if (timeRange) {
+            // Use timeRange (days)
+            const days = parseInt(timeRange);
+
+            if (isNaN(days) || days <= 0) {
+                return NextResponse.json({ error: 'Invalid time range' }, { status: 400 });
+            }
+
+            endDate = new Date();
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - days);
+        } else {
+            // Default to last 30 days
+            endDate = new Date();
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+        }
+
+        // Generate report data using the new utility
+        const reportData = await generateReportData(type, {
+            startDate,
+            endDate,
+            organizationId: user.organizationId,
+            customFilters: filters
+        });
+
+        // Calculate timeRange for display (days between start and end)
+        const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+        // Format report based on export format
+        let reportContent;
+        let contentType;
+        let fileExtension;
+
+        switch (format) {
+            case EXPORT_FORMATS.CSV:
+                reportContent = formatAsCSV(reportData);
+                contentType = 'text/csv';
+                fileExtension = 'csv';
                 break;
-            case 'Sales Performance':
-                reportData = await generateSalesReport(startDate, user.organizationId);
-                break;
-            case 'Order Fulfillment':
-                reportData = await generateOrderReport(startDate, user.organizationId);
-                break;
-            case 'Low Stock Alert':
-                reportData = await generateLowStockReport(user.organizationId);
-                break;
-            case 'Financial Summary':
-                reportData = await generateFinancialReport(startDate, user.organizationId);
-                break;
+
+            case EXPORT_FORMATS.HTML:
             default:
-                return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
+                reportContent = formatAsHTML(reportData, type, daysDiff);
+                contentType = 'text/html';
+                fileExtension = 'html';
+                break;
         }
 
-        const reportContent = generateReportHTML(reportData, reportName, timeRange);
-        const fileName = `${reportName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.html`;
+        // Save report to database
+        try {
+            await saveReport(reportData, {
+                organizationId: user.organizationId,
+                reportType: type,
+                format,
+                timeRange: daysDiff,
+                content: reportContent,
+                saveToFile: true
+            });
+        } catch (saveError) {
+            console.error('Error saving report to database:', saveError);
+            // Continue even if saving fails - user still gets the report
+        }
 
+        // Generate filename
+        const fileName = `${type.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.${fileExtension}`;
+
+        // Return file for download
         return new NextResponse(reportContent, {
             headers: {
-                'Content-Type': 'text/html',
+                'Content-Type': contentType,
                 'Content-Disposition': `attachment; filename="${fileName}"`
             }
         });
@@ -63,452 +128,3 @@ export const POST = withAuth(async (request, { user }) => {
         );
     }
 })
-
-
-// Helper functions
-function getReportCategory(type) {
-    if (type.includes('Inventory') || type.includes('Stock')) return 'Inventory'
-    if (type.includes('Sales') || type.includes('Financial')) return 'Sales'
-    if (type.includes('Order') || type.includes('Fulfillment')) return 'Operations'
-    return 'General'
-}
-
-function getReportDescription(type) {
-    const descriptions = {
-        'Inventory Summary': 'Complete overview of current stock levels and values',
-        'Sales Performance': 'Sales analysis and revenue breakdown',
-        'Order Fulfillment': 'Order processing times and fulfillment metrics',
-        'Low Stock Alert': 'Products requiring immediate attention',
-        'Financial Summary': 'Revenue and financial performance overview'
-    }
-    return descriptions[type] || 'Warehouse report'
-}
-
-async function generateInventoryReport(startDate, organizationId) {
-    const products = await prisma.product.findMany({
-        where: {
-            organizationId
-        },
-        include: {
-            category: true
-        }
-    })
-
-    const totalValue = products.reduce((sum, product) => sum + (product.value * product.stock), 0)
-    const lowStockCount = products.filter(p => p.status === 'LOW_STOCK' || p.status === 'OUT_OF_STOCK').length
-
-    return {
-        title: 'Inventory Summary Report',
-        totalProducts: products.length,
-        totalValue,
-        lowStockCount,
-        products: products // Show all products
-    }
-}
-
-async function generateSalesReport(startDate, organizationId) {
-    const orders = await prisma.order.findMany({
-        where: {
-            organizationId,
-            createdAt: { gte: startDate }
-        },
-        include: {
-            items: true
-        }
-    })
-
-    const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
-    const completedOrders = orders.filter(o => o.status === 'Completed').length
-
-    return {
-        title: 'Sales Performance Report',
-        totalOrders: orders.length,
-        totalRevenue,
-        completedOrders,
-        averageOrderValue: orders.length > 0 ? totalRevenue / orders.length : 0,
-        orders: orders // Show all orders
-    }
-}
-
-async function generateOrderReport(startDate, organizationId) {
-    const orders = await prisma.order.findMany({
-        where: {
-            organizationId,
-            createdAt: { gte: startDate }
-        }
-    })
-
-    const completedOrders = orders.filter(o => o.status === 'Completed')
-    const avgFulfillmentTime = completedOrders.length > 0
-        ? completedOrders.reduce((sum, order) => {
-        const diff = order.updatedAt.getTime() - order.createdAt.getTime()
-        return sum + (diff / (1000 * 60 * 60 * 24))
-    }, 0) / completedOrders.length
-        : 0
-
-    return {
-        title: 'Order Fulfillment Report',
-        totalOrders: orders.length,
-        completedOrders: completedOrders.length,
-        processingOrders: orders.filter(o => o.status === 'Processing').length,
-        avgFulfillmentTime,
-        orders: orders // Show all orders
-    }
-}
-
-async function generateLowStockReport(organizationId) {
-    const lowStockProducts = await prisma.product.findMany({
-        where: {
-            organizationId,
-            OR: [
-                { status: 'LOW_STOCK' },
-                { status: 'OUT_OF_STOCK' }
-            ]
-        },
-        include: {
-            category: true
-        }
-    })
-
-    return {
-        title: 'Low Stock Alert Report',
-        totalLowStock: lowStockProducts.length,
-        outOfStock: lowStockProducts.filter(p => p.status === 'OUT_OF_STOCK').length,
-        lowStock: lowStockProducts.filter(p => p.status === 'LOW_STOCK').length,
-        products: lowStockProducts
-    }
-}
-
-async function generateFinancialReport(startDate, organizationId) {
-    const orders = await prisma.order.findMany({
-        where: {
-            organizationId,
-            createdAt: { gte: startDate }
-        }
-    })
-
-    const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
-    const totalSubtotal = orders.reduce((sum, order) => sum + order.subtotal, 0)
-
-    const products = await prisma.product.findMany({
-        where: {
-            organizationId
-        }
-    })
-    const totalInventoryValue = products.reduce((sum, product) => sum + (product.value * product.stock), 0)
-
-    return {
-        title: 'Financial Summary Report',
-        totalRevenue,
-        totalSubtotal,
-        totalInventoryValue,
-        orderCount: orders.length,
-        averageOrderValue: orders.length > 0 ? totalRevenue / orders.length : 0
-    }
-}
-
-function generateReportHTML(data, reportName, timeRange) {
-    const currentDate = new Date().toLocaleDateString()
-
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>${reportName}</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-            .header { border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
-            .header h1 { color: #3b82f6; margin: 0; }
-            .meta-info { color: #666; margin-top: 10px; }
-            .section { margin-bottom: 30px; }
-            .section h2 { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; }
-            .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
-            .stat-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; }
-            .stat-value { font-size: 24px; font-weight: bold; color: #3b82f6; }
-            .stat-label { color: #6b7280; font-size: 14px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th, td { border: 1px solid #e5e7eb; padding: 12px; text-align: left; }
-            th { background-color: #f9fafb; font-weight: bold; }
-            tr:nth-child(even) { background-color: #f9fafb; }
-            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>${data.title}</h1>
-            <div class="meta-info">
-                Generated on: ${currentDate} | Time Range: Last ${timeRange} days
-            </div>
-        </div>
-
-        ${generateReportContent(data)}
-
-        <div class="footer">
-            <p>This report was automatically generated by Quantus Warehouse Management System.</p>
-            <p>For questions about this report, please contact your system administrator.</p>
-        </div>
-    </body>
-    </html>
-    `
-}
-
-function generateReportContent(data) {
-    // Generate different content based on the report type
-    if (data.title.includes('Inventory')) {
-        return `
-            <div class="section">
-                <h2>Inventory Overview</h2>
-                <div class="stat-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalProducts}</div>
-                        <div class="stat-label">Total Products</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalValue?.toLocaleString() || 0}</div>
-                        <div class="stat-label">Total Inventory Value</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.lowStockCount}</div>
-                        <div class="stat-label">Low Stock Items</div>
-                    </div>
-                </div>
-                
-                <h3>Product Details</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>SKU</th>
-                            <th>Product Name</th>
-                            <th>Category</th>
-                            <th>Stock</th>
-                            <th>Min Stock</th>
-                            <th>Status</th>
-                            <th>Value</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.products?.map(product => `
-                            <tr>
-                                <td>${product.sku}</td>
-                                <td>${product.name}</td>
-                                <td>${product.category?.name || 'N/A'}</td>
-                                <td>${product.stock}</td>
-                                <td>${product.minStock}</td>
-                                <td>${product.status}</td>
-                                <td>${(product.value * product.stock).toFixed(2)}</td>
-                            </tr>
-                        `).join('') || ''}
-                    </tbody>
-                </table>
-            </div>
-        `
-    }
-
-    if (data.title.includes('Sales')) {
-        return `
-            <div class="section">
-                <h2>Sales Performance Overview</h2>
-                <div class="stat-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalOrders}</div>
-                        <div class="stat-label">Total Orders</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalRevenue?.toLocaleString() || 0}</div>
-                        <div class="stat-label">Total Revenue</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.completedOrders}</div>
-                        <div class="stat-label">Completed Orders</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.averageOrderValue?.toFixed(2) || 0}</div>
-                        <div class="stat-label">Average Order Value</div>
-                    </div>
-                </div>
-                
-                <h3>Recent Orders</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Order ID</th>
-                            <th>Customer</th>
-                            <th>Total</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.orders?.map(order => `
-                            <tr>
-                                <td>${order.orderId}</td>
-                                <td>${order.customer}</td>
-                                <td>${order.total?.toFixed(2)}</td>
-                                <td>${order.status}</td>
-                                <td>${new Date(order.createdAt).toLocaleDateString()}</td>
-                            </tr>
-                        `).join('') || ''}
-                    </tbody>
-                </table>
-            </div>
-        `
-    }
-
-    if (data.title.includes('Order Fulfillment')) {
-        return `
-            <div class="section">
-                <h2>Order Fulfillment Metrics</h2>
-                <div class="stat-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalOrders}</div>
-                        <div class="stat-label">Total Orders</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.completedOrders}</div>
-                        <div class="stat-label">Completed Orders</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.processingOrders}</div>
-                        <div class="stat-label">Processing Orders</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.avgFulfillmentTime?.toFixed(1) || 0} days</div>
-                        <div class="stat-label">Avg Fulfillment Time</div>
-                    </div>
-                </div>
-                
-                <h3>Order Status Breakdown</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Order ID</th>
-                            <th>Customer</th>
-                            <th>Status</th>
-                            <th>Priority</th>
-                            <th>Due Date</th>
-                            <th>Assigned To</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.orders?.map(order => `
-                            <tr>
-                                <td>${order.orderId}</td>
-                                <td>${order.customer}</td>
-                                <td>${order.status}</td>
-                                <td>${order.priority}</td>
-                                <td>${order.dueDate}</td>
-                                <td>${order.assignedTo}</td>
-                            </tr>
-                        `).join('') || ''}
-                    </tbody>
-                </table>
-            </div>
-        `
-    }
-
-    if (data.title.includes('Low Stock')) {
-        return `
-            <div class="section">
-                <h2>Low Stock Alert Summary</h2>
-                <div class="stat-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalLowStock}</div>
-                        <div class="stat-label">Total Low Stock Items</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.outOfStock}</div>
-                        <div class="stat-label">Out of Stock</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.lowStock}</div>
-                        <div class="stat-label">Low Stock</div>
-                    </div>
-                </div>
-                
-                <h3>Items Requiring Attention</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>SKU</th>
-                            <th>Product Name</th>
-                            <th>Category</th>
-                            <th>Current Stock</th>
-                            <th>Min Stock</th>
-                            <th>Status</th>
-                            <th>Location</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.products?.map(product => `
-                            <tr style="${product.status === 'OUT_OF_STOCK' ? 'background-color: #fee2e2;' : 'background-color: #fef3c7;'}">
-                                <td>${product.sku}</td>
-                                <td>${product.name}</td>
-                                <td>${product.category?.name || 'N/A'}</td>
-                                <td>${product.stock}</td>
-                                <td>${product.minStock}</td>
-                                <td>${product.status}</td>
-                                <td>${product.location}</td>
-                            </tr>
-                        `).join('') || ''}
-                    </tbody>
-                </table>
-            </div>
-        `
-    }
-
-    if (data.title.includes('Financial')) {
-        return `
-            <div class="section">
-                <h2>Financial Summary</h2>
-                <div class="stat-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalRevenue?.toLocaleString() || 0}</div>
-                        <div class="stat-label">Total Revenue</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalSubtotal?.toLocaleString() || 0}</div>
-                        <div class="stat-label">Subtotal</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.totalInventoryValue?.toLocaleString() || 0}</div>
-                        <div class="stat-label">Inventory Value</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.orderCount}</div>
-                        <div class="stat-label">Total Orders</div>
-                    </div>
-                </div>
-                
-                <h3>Key Metrics</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Metric</th>
-                            <th>Value</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Average Order Value</td>
-                            <td>${data.averageOrderValue?.toFixed(2) || 0}</td>
-                        </tr>
-                        <tr>
-                            <td>Total Revenue</td>
-                            <td>${data.totalRevenue?.toLocaleString() || 0}</td>
-                        </tr>
-                        <tr>
-                            <td>Total Inventory Value</td>
-                            <td>${data.totalInventoryValue?.toLocaleString() || 0}</td>
-                        </tr>
-                        <tr>
-                            <td>Revenue per Order</td>
-                            <td>${(data.totalRevenue / data.orderCount || 0).toFixed(2)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        `
-    }
-
-    return '<div class="section"><p>Report data not available</p></div>'
-}

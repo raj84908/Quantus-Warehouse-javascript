@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
 // GET reports statistics
-export async function GET(request) {
+export const GET = withAuth(async (request, { user }) => {
     const { searchParams } = new URL(request.url)
     const timeRange = searchParams.get('timeRange') || '30'
     const days = parseInt(timeRange)
@@ -11,9 +12,10 @@ export async function GET(request) {
     startDate.setDate(startDate.getDate() - days)
 
     try {
-        // Total reports generated this month
+        // Total reports generated this month for this organization
         const totalReports = await prisma.report.count({
             where: {
+                organizationId: user.organizationId,
                 createdAt: {
                     gte: startDate
                 }
@@ -24,6 +26,7 @@ export async function GET(request) {
         // In a real system, you'd have a flag for automated vs manual reports
         const automatedReports = await prisma.report.count({
             where: {
+                organizationId: user.organizationId,
                 createdAt: {
                     gte: startDate
                 },
@@ -35,8 +38,11 @@ export async function GET(request) {
         // For simplicity, we'll calculate this as a high percentage since reports are generated successfully
         const dataAccuracy = 99.2 // You could make this more dynamic based on actual error rates
 
-        // Storage used (sum of all file sizes)
+        // Storage used (sum of all file sizes) for this organization
         const storageData = await prisma.report.aggregate({
+            where: {
+                organizationId: user.organizationId
+            },
             _sum: {
                 size: true
             }
@@ -57,4 +63,4 @@ export async function GET(request) {
             { status: 500 }
         )
     }
-}
+})

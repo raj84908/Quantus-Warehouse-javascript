@@ -1,121 +1,67 @@
-const express = require('express')
-const router = express.Router()
+import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
+import fs from 'fs'
+import path from 'path'
 
-
-// Helper: validate required fields
-function validateProfile(data) {
-    if (!data.firstName || !data.lastName || !data.email) {
-        return 'First name, last name, and email are required'
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(data.email)) return 'Invalid email format'
-    return null
-}
-
-// GET /api/profile
-router.get('/', async (req, res) => {
+// GET /api/reports/download/[id]
+export const GET = withAuth(async (request, { params, user }) => {
     try {
-        const profile = await prisma.profile.findFirst()
-        if (!profile) return res.status(404).json({ error: 'Profile not found' })
-        res.json(profile)
-    } catch (error) {
-        console.error('Error fetching profile:', error)
-        res.status(500).json({ error: 'Failed to fetch profile' })
-    }
-})
+        const reportId = parseInt(params.id)
 
-// POST /api/profile
-router.post('/', async (req, res) => {
-    try {
-        const data = req.body
-        const error = validateProfile(data)
-        if (error) return res.status(400).json({ error })
-
-        // Check if profile already exists
-        const existingProfile = await prisma.profile.findFirst()
-        if (existingProfile) {
-            return res.status(400).json({ error: 'Profile already exists. Use PUT to update.' })
+        if (isNaN(reportId)) {
+            return NextResponse.json(
+                { error: 'Invalid report ID' },
+                { status: 400 }
+            )
         }
 
-        const profile = await prisma.profile.create({
-            data: {
-                firstName: data.firstName,
-                lastName: data.lastName,
-                email: data.email,
-                phone: data.phone || '',
-                location: data.location || '',
-                bio: data.bio || '',
-                department: data.department || 'General',
-                position: data.position || 'Employee',
-                employeeId: data.employeeId || 'EMP-' + Date.now().toString().slice(-3),
-                joinDate: data.joinDate ? new Date(data.joinDate) : new Date(),
-                avatar: data.avatar || null,
-                createdAt: new Date(),
-                updatedAt: new Date()
+        // Fetch report from database - ensure it belongs to user's organization
+        const report = await prisma.report.findFirst({
+            where: {
+                id: reportId,
+                organizationId: user.organizationId
             }
         })
 
-        res.status(201).json(profile)
-    } catch (error) {
-        console.error('Error creating profile:', error)
-        if (error.code === 'P2002') {
-            res.status(400).json({ error: 'Email or Employee ID already exists' })
-        } else {
-            res.status(500).json({ error: 'Failed to create profile' })
+        if (!report) {
+            return NextResponse.json(
+                { error: 'Report not found' },
+                { status: 404 }
+            )
         }
-    }
-})
 
-// PUT /api/profile
-router.put('/', async (req, res) => {
-    try {
-        const existingProfile = await prisma.profile.findFirst()
-        if (!existingProfile) return res.status(404).json({ error: 'Profile not found' })
+        // Check if file exists
+        const filePath = path.join(process.cwd(), 'reports', report.filePath)
 
-        const data = req.body
-        const error = validateProfile(data)
-        if (error) return res.status(400).json({ error })
+        if (!fs.existsSync(filePath)) {
+            return NextResponse.json(
+                { error: 'Report file not found on server' },
+                { status: 404 }
+            )
+        }
 
-        const profile = await prisma.profile.update({
-            where: { id: existingProfile.id },
-            data: {
-                firstName: data.firstName,
-                lastName: data.lastName,
-                email: data.email,
-                phone: data.phone || '',
-                location: data.location || '',
-                bio: data.bio || '',
-                department: data.department || existingProfile.department,
-                position: data.position || existingProfile.position,
-                avatar: data.avatar || existingProfile.avatar,
-                updatedAt: new Date()
+        // Read file
+        const fileBuffer = fs.readFileSync(filePath)
+
+        // Determine content type based on format
+        const contentType = report.format === 'PDF' ? 'application/pdf' :
+                           report.format === 'EXCEL' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' :
+                           report.format === 'CSV' ? 'text/csv' :
+                           'text/html'
+
+        // Return file
+        return new NextResponse(fileBuffer, {
+            headers: {
+                'Content-Type': contentType,
+                'Content-Disposition': `attachment; filename="${report.name}"`
             }
         })
-
-        res.json(profile)
     } catch (error) {
-        console.error('Error updating profile:', error)
-        if (error.code === 'P2002') {
-            res.status(400).json({ error: 'Email already exists' })
-        } else {
-            res.status(500).json({ error: 'Failed to update profile' })
-        }
+        console.error('Error downloading report:', error)
+        return NextResponse.json(
+            { error: 'Failed to download report' },
+            { status: 500 }
+        )
     }
 })
-
-// DELETE /api/profile
-router.delete('/', async (req, res) => {
-    try {
-        const existingProfile = await prisma.profile.findFirst()
-        if (!existingProfile) return res.status(404).json({ error: 'Profile not found' })
-
-        const deleted = await prisma.profile.delete({ where: { id: existingProfile.id } })
-        res.json({ message: 'Profile deleted', profile: deleted })
-    } catch (error) {
-        console.error('Error deleting profile:', error)
-        res.status(500).json({ error: 'Failed to delete profile' })
-    }
-})
-
-module.exports = router

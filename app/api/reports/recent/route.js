@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma'
+import { withAuth } from '@/lib/auth'
 
-export async function GET(request) {
+export const GET = withAuth(async (request, { user }) => {
     try {
         const recentReports = await prisma.report.findMany({
+            where: {
+                organizationId: user.organizationId
+            },
             orderBy: { createdAt: 'desc' },
             take: 10,
         })
@@ -16,4 +20,4 @@ export async function GET(request) {
             { status: 500 }
         )
     }
-}
+})
