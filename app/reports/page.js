@@ -472,9 +472,9 @@ function ReportsPage() {
         {/* Preview Modal */}
         {showPreview && previewReport && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-[95vw] max-h-[95vh] flex flex-col">
+                <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                     Preview: {previewReport.type}
                   </h3>
                   <div className="flex space-x-2">
@@ -496,15 +496,15 @@ function ReportsPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-auto p-4">
+                <div className="flex-1 overflow-hidden p-6">
                   {previewReport.format === 'HTML' ? (
                       <iframe
                           srcDoc={previewReport.content}
-                          className="w-full h-full border border-gray-200 dark:border-gray-700 rounded"
+                          className="w-full h-full border border-gray-200 dark:border-gray-700 rounded min-h-[700px]"
                           title="Report Preview"
                       />
                   ) : (
-                      <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-4 rounded overflow-auto">
+                      <pre className="text-sm bg-gray-50 dark:bg-gray-900 p-6 rounded overflow-auto h-full">
                         {previewReport.content}
                       </pre>
                   )}
