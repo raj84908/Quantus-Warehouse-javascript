@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 
 function validateProfile(data) {
     if (!data.firstName || !data.lastName || !data.email) {
@@ -13,10 +15,50 @@ function validateProfile(data) {
 // GET /api/profile
 export async function GET() {
     try {
-        const profile = await prisma.profile.findFirst()
-        if (!profile) {
-            return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+        // Get the current session to identify the user
+        const session = await getServerSession(authOptions)
+
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
+
+        // Try to get existing profile
+        let profile = await prisma.profile.findFirst()
+
+        // If no profile exists, create one from AuthUser data
+        if (!profile) {
+            const authUser = await prisma.authUser.findUnique({
+                where: { id: session.user.id },
+                include: { organization: true }
+            })
+
+            if (!authUser) {
+                return NextResponse.json({ error: 'User not found' }, { status: 404 })
+            }
+
+            // Split name into first and last name
+            const nameParts = (authUser.name || '').trim().split(' ')
+            const firstName = nameParts[0] || 'User'
+            const lastName = nameParts.slice(1).join(' ') || 'Profile'
+
+            // Create profile with data from AuthUser
+            profile = await prisma.profile.create({
+                data: {
+                    firstName,
+                    lastName,
+                    email: authUser.email,
+                    phone: '',
+                    location: '',
+                    bio: '',
+                    department: 'General',
+                    position: authUser.role === 'OWNER' ? 'Owner' : authUser.role === 'ADMIN' ? 'Administrator' : 'Employee',
+                    employeeId: 'EMP-' + authUser.id.toString().slice(-6),
+                    joinDate: authUser.createdAt,
+                    avatar: null
+                }
+            })
+        }
+
         return NextResponse.json(profile)
     } catch (error) {
         console.error('Error fetching profile:', error)
