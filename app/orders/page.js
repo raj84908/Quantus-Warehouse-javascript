@@ -214,11 +214,18 @@ export default function OrdersPage() {
   ]
 
   // Filter products based on search
-  const filteredProducts = inventoryItems.filter(item =>
-      item.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      item.category.toLowerCase().includes(productSearch.toLowerCase()) ||
-      item.sku.toLowerCase().includes(productSearch.toLowerCase())
-  )
+  const filteredProducts = inventoryItems.filter(item => {
+    const searchLower = productSearch.toLowerCase();
+    const productName = (item.name || '').toLowerCase();
+    const productSku = (item.sku || '').toLowerCase();
+    const categoryName = (typeof item.category === 'object' && item.category?.name)
+        ? item.category.name.toLowerCase()
+        : (typeof item.category === 'string' ? item.category.toLowerCase() : '');
+
+    return productName.includes(searchLower) ||
+           productSku.includes(searchLower) ||
+           categoryName.includes(searchLower);
+  })
 
   const getStatusColor = (status) => {
     switch (status) {
