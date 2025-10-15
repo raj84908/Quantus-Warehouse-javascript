@@ -7,104 +7,81 @@ export const PATCH = withAuth(async (request, { params, user }) => {
         const { id } = params;
         const body = await request.json();
 
-        // Wrap entire operation in a transaction for atomicity
+        // Get the existing order to verify ownership
+        const existingOrder = await prisma.order.findUnique({
+            where: { id: parseInt(id) },
+            include: { items: true }
+        });
+
+        if (!existingOrder) {
+            throw new Error("Order not found");
+        }
+
+        // Verify organization ownership
+        if (existingOrder.organizationId !== user.organizationId) {
+            throw new Error("Unauthorized");
+        }
+
+        // Use batch operations for better performance
         const updatedOrder = await prisma.$transaction(async (tx) => {
-            // Get the existing order with items
-            const existingOrder = await tx.order.findUnique({
-                where: { id: parseInt(id) },
-                include: { items: true }
-            });
-
-            if (!existingOrder) {
-                throw new Error("Order not found");
-            }
-
-            // Verify organization ownership
-            if (existingOrder.organizationId !== user.organizationId) {
-                throw new Error("Unauthorized");
-            }
-
-            // If items are being updated, handle stock adjustments
+            // If items are being updated, handle stock adjustments efficiently
             if (body.items) {
-                // Step 1: Restore stock for old items
+                // Build stock adjustments map (productId -> quantity delta)
+                const stockDeltas = new Map();
+
+                // Add back stock from old items
                 for (const oldItem of existingOrder.items) {
                     if (oldItem.productId) {
-                        const product = await tx.product.findUnique({
-                            where: { id: oldItem.productId }
-                        });
-
-                        if (product) {
-                            const restoredStock = product.stock + oldItem.quantity;
-                            const newStatus = restoredStock <= 0 ? 'OUT_OF_STOCK' :
-                                            restoredStock <= product.minStock ? 'LOW_STOCK' : 'IN_STOCK';
-
-                            await tx.product.update({
-                                where: { id: product.id },
-                                data: {
-                                    stock: restoredStock,
-                                    status: newStatus
-                                }
-                            });
-
-                            // Create stock adjustment record for restoration
-                            await tx.stockAdjustment.create({
-                                data: {
-                                    productId: product.id,
-                                    quantity: oldItem.quantity,  // Positive for restoration
-                                    previousStock: product.stock,
-                                    newStock: restoredStock,
-                                    reason: "Order Edit - Stock Restored",
-                                    notes: `Order ${existingOrder.orderId} edited - restored ${oldItem.quantity} units`,
-                                    adjustedBy: user.name || "System"
-                                }
-                            });
-                        }
+                        stockDeltas.set(
+                            oldItem.productId,
+                            (stockDeltas.get(oldItem.productId) || 0) + oldItem.quantity
+                        );
                     }
                 }
 
-                // Step 2: Delete existing items
-                await tx.orderItem.deleteMany({
-                    where: { orderId: parseInt(id) }
-                });
-
-                // Step 3: Deduct stock for new items
+                // Subtract stock for new items
                 for (const newItem of body.items) {
                     if (newItem.productId) {
+                        stockDeltas.set(
+                            newItem.productId,
+                            (stockDeltas.get(newItem.productId) || 0) - newItem.quantity
+                        );
+                    }
+                }
+
+                // Apply all stock changes in parallel
+                const stockUpdates = Array.from(stockDeltas.entries()).map(async ([productId, delta]) => {
+                    if (delta !== 0) {
                         const product = await tx.product.findUnique({
-                            where: { id: newItem.productId }
+                            where: { id: productId }
                         });
 
                         if (product) {
-                            const newStock = Math.max(0, product.stock - newItem.quantity);
+                            const newStock = Math.max(0, product.stock + delta);
                             const newStatus = newStock <= 0 ? 'OUT_OF_STOCK' :
                                             newStock <= product.minStock ? 'LOW_STOCK' : 'IN_STOCK';
 
-                            await tx.product.update({
-                                where: { id: product.id },
+                            return tx.product.update({
+                                where: { id: productId },
                                 data: {
                                     stock: newStock,
                                     status: newStatus
                                 }
                             });
-
-                            // Create stock adjustment record for deduction
-                            await tx.stockAdjustment.create({
-                                data: {
-                                    productId: product.id,
-                                    quantity: -newItem.quantity,  // Negative for deduction
-                                    previousStock: product.stock,
-                                    newStock: newStock,
-                                    reason: "Order Edit - Stock Deducted",
-                                    notes: `Order ${existingOrder.orderId} edited - deducted ${newItem.quantity} units`,
-                                    adjustedBy: user.name || "System"
-                                }
-                            });
                         }
                     }
-                }
+                    return null;
+                });
+
+                await Promise.all(stockUpdates);
+
+                // Delete existing items
+                await tx.orderItem.deleteMany({
+                    where: { orderId: parseInt(id) }
+                });
             }
 
-            // Update the order
+            // Update the order with new items
             const updated = await tx.order.update({
                 where: { id: parseInt(id) },
                 data: {
@@ -114,7 +91,7 @@ export const PATCH = withAuth(async (request, { params, user }) => {
                     billingAddress: body.billingAddress,
                     subtotal: body.subtotal,
                     total: body.total,
-                    status: body.status,
+                    ...(body.status && { status: body.status }),
                     ...(body.items && {
                         items: {
                             create: body.items.map(item => ({
@@ -133,11 +110,15 @@ export const PATCH = withAuth(async (request, { params, user }) => {
             });
 
             return updated;
+        }, {
+            timeout: 10000 // Increase timeout to 10 seconds
         });
 
         return NextResponse.json(updatedOrder);
     } catch (error) {
         console.error(`Error updating order ${params.id}:`, error);
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
 
         if (error.message === "Order not found") {
             return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -147,7 +128,7 @@ export const PATCH = withAuth(async (request, { params, user }) => {
         }
 
         return NextResponse.json(
-            { error: "Failed to update order" },
+            { error: `Failed to update order: ${error.message}` },
             { status: 500 }
         );
     }

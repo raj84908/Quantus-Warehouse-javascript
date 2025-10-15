@@ -286,6 +286,7 @@ export default function OrdersPage() {
       phone: order.phone,
       billingAddress: order.billingAddress
     })
+    setProductSearch('') // Clear product search when opening edit modal
     setIsEditModalOpen(true)
     // Fetch partial payments for this order
     await fetchPartialPayments(order.id)
@@ -302,15 +303,28 @@ export default function OrdersPage() {
   }
 
   const addProductToEditOrder = (product) => {
-    const newItem = {
-      id: Date.now(),
-      sku: product.sku,
-      name: product.name,
-      price: product.value,
-      quantity: 1,
-      productId: product.id
+    // Check if product already exists in the order
+    const existingItem = editOrderItems.find(item => item.productId === product.id || item.sku === product.sku)
+
+    if (existingItem) {
+      // If item already exists, increment quantity by 1
+      setEditOrderItems(editOrderItems.map(item =>
+        (item.productId === product.id || item.sku === product.sku)
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ))
+    } else {
+      // Add as new item
+      const newItem = {
+        id: Date.now(),
+        sku: product.sku,
+        name: product.name,
+        price: product.value,
+        quantity: 1,
+        productId: product.id
+      }
+      setEditOrderItems([...editOrderItems, newItem])
     }
-    setEditOrderItems([...editOrderItems, newItem])
   }
 
   const deletePartialPayment = async (paymentId) => {
@@ -339,7 +353,6 @@ export default function OrdersPage() {
         phone: editCustomerInfo.phone,
         billingAddress: editCustomerInfo.billingAddress,
         items: editOrderItems.map(item => ({
-          id: item.id,
           sku: item.sku,
           name: item.name,
           price: item.price,
@@ -350,13 +363,19 @@ export default function OrdersPage() {
         total: editOrderItems.reduce((sum, item) => sum + (item.quantity * item.price), 0)
       }
 
+      console.log('Updating order with data:', updatedOrder)
+
       const response = await fetch(`/api/orders/${editingOrder.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedOrder)
       })
 
-      if (!response.ok) throw new Error('Failed to update order')
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('Server error response:', errorData)
+        throw new Error(errorData.error || 'Failed to update order')
+      }
 
       const savedOrder = await response.json()
       setOrders(orders.map(o => o.id === savedOrder.id ? savedOrder : o))
@@ -364,7 +383,7 @@ export default function OrdersPage() {
       alert('Order updated successfully!')
     } catch (error) {
       console.error('Error updating order:', error)
-      alert('Failed to update order')
+      alert(`Failed to update order: ${error.message}`)
     }
   }
   const removeItemFromInvoice = (id) => {
@@ -596,10 +615,10 @@ export default function OrdersPage() {
             const tableStartY = Math.max(leftY, rightY) + 15
 
             const tableData = items.map(item => [
-              item.name,
-              item.quantity.toString(),
-              `$${parseFloat(item.price).toFixed(2)}`,
-              `$${(item.quantity * item.price).toFixed(2)}`
+              String(item.name || '').trim().replace(/\s+/g, ' '),
+              String(item.quantity || 1),
+              `$${parseFloat(item.price || 0).toFixed(2)}`,
+              `$${((item.quantity || 1) * (item.price || 0)).toFixed(2)}`
             ])
 
             doc.autoTable({
@@ -1215,7 +1234,7 @@ export default function OrdersPage() {
                           />
                         </div>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {filteredProducts.slice(0, 5).map((product) => (
+                          {filteredProducts.map((product) => (
                               <Card key={product.sku} className="cursor-pointer hover:shadow-md transition-shadow">
                                 <CardContent className="p-3 flex justify-between items-center">
                                   <div>
