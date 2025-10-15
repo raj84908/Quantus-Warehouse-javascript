@@ -1430,16 +1430,14 @@ export default function OrdersPage() {
                                   <div className="flex items-start justify-between">
                                     <div className="flex items-start space-x-4 flex-1">
                                       <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
-                                        {product.image ? (
+                                        {(product.shopifyImageUrl || product.image) ? (
                                             <img
-                                                src={`${API_BASE}${product.image}`}  // Add your backend URL
+                                                src={product.shopifyImageUrl || `${API_BASE}${product.image}`}
                                                 alt={product.name}
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => {
-                                                  console.log('Image failed to load:', product.image);
                                                   e.target.style.display = 'none';
                                                 }}
-                                                onLoad={() => console.log('Image loaded successfully:', product.image)}
                                             />
                                         ) : (
                                             <Package className="h-8 w-8 text-gray-400" />
